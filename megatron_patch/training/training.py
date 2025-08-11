@@ -13,10 +13,10 @@ import sys
 from typing import List
 
 import torch.distributed
-from .log_handler import CustomHandler
+from megatron.training.log_handler import CustomHandler
 # Make default logging level INFO, but filter out all log messages not from MCore.
 logging.basicConfig(handlers=[CustomHandler()], level=logging.INFO)
-from .theoretical_memory_usage import report_theoretical_memory
+from megatron.training.theoretical_memory_usage import report_theoretical_memory
 import time
 # The earliest we can measure the start time.
 _TRAIN_START_TIME = time.time()
@@ -107,7 +107,7 @@ from megatron.training.global_vars import (
     get_wandb_writer,
     get_one_logger,
 )
-from megatron.training import one_logger_utils
+from . import one_logger_utils
 
 from megatron.training import ft_integration
 
@@ -127,62 +127,6 @@ def print_datetime(string):
     torch.distributed.barrier()
     time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print_rank_0(f'[{string}] datetime: {time_str} ')
-
-
-def num_floating_point_operations_0_10(args, batch_size):
-    # Attention projection size.
-    query_projection_size = args.kv_channels * args.num_attention_heads
-    query_projection_to_hidden_size_ratio = query_projection_size / args.hidden_size
-    # Group Query Attention.
-    if not args.group_query_attention:
-        args.num_query_groups = args.num_attention_heads
-    # MoE.
-    num_experts_routed_to = 1 if args.num_experts is None else args.moe_router_topk
-    gated_linear_multiplier = 3 / 2 if args.swiglu else 1
-    shared_expert_ffn_hidden_size = (
-        0
-        if args.moe_shared_expert_intermediate_size is None
-        else args.moe_shared_expert_intermediate_size
-    )
-
-    # The 12x term below comes from the following factors; for more details, see
-    # "APPENDIX: FLOATING-POINT OPERATIONS" in https://arxiv.org/abs/2104.04473.
-    # - 3x: Each GEMM in the model needs to be performed 3 times (forward pass,
-    #       backward wgrad [weight gradient], backward dgrad [data gradient]).
-    # - 2x: GEMMs of a particular size are stacked twice in the standard Transformer model
-    #       architectures implemented in this codebase (e.g., h->ffn_h GEMM and ffn_h->h GEMM
-    #       in MLP layer).
-    # - 2x: A GEMM of a m*n tensor with a n*k tensor requires 2mnk floating-point operations.
-    expansion_factor = 3 * 2 * 2
-
-    return (
-        expansion_factor
-        * batch_size
-        * args.seq_length
-        * args.num_layers
-        * args.hidden_size
-        * args.hidden_size
-        * (
-            # Attention.
-            (
-                (
-                    1
-                    + (args.num_query_groups / args.num_attention_heads)
-                    + (args.seq_length / args.hidden_size)
-                ) * query_projection_to_hidden_size_ratio
-            )
-            # MLP.
-            + (
-                (args.ffn_hidden_size / args.hidden_size)
-                * num_experts_routed_to
-                * gated_linear_multiplier
-            )
-            # Shared Experts.
-            + ((shared_expert_ffn_hidden_size / args.hidden_size) * gated_linear_multiplier)
-            # Logit.
-            + (args.padded_vocab_size / (2 * args.num_layers * args.hidden_size))
-        )
-    )
 
 
 def num_floating_point_operations(args, batch_size):
@@ -1577,17 +1521,8 @@ def training_log(loss_dict, total_loss_dict, learning_rate, decoupled_learning_r
         elapsed_time = timers('interval-time').elapsed(barrier=True)
         elapsed_time_per_iteration = elapsed_time / total_iterations
 
-
-        throughput = num_floating_point_operations_0_10(args, batch_size) / (
+        throughput = num_floating_point_operations(args, batch_size) / (
             elapsed_time_per_iteration * 10**12 * args.world_size)
-
-        throughput2 = num_floating_point_operations(args, batch_size) / (
-            elapsed_time_per_iteration * 10**12 * args.world_size)            
-
-        token_per_second = int(args.seq_length) \
-            * int(args.global_batch_size) / elapsed_time_per_iteration
-        token_throughput = token_per_second / args.world_size
-
 
         one_logger_utils.track_e2e_metrics(args.log_throughput, throughput)
 
@@ -1610,27 +1545,11 @@ def training_log(loss_dict, total_loss_dict, learning_rate, decoupled_learning_r
             elapsed_time_per_iteration * 1000.0)
         if args.log_throughput:
             log_string += f' throughput per GPU (TFLOP/s/GPU): {throughput:.1f} |'
-            log_string += f' mc0.12 throughput per GPU (TFLOP/s/GPU): {throughput2:.1f} |'
-            log_string += ' throughput (token/sec/GPU) : {:.1f} |'.format(token_throughput)
             if args.log_timers_to_tensorboard:
                 if writer:
                     writer.add_scalar('throughput', throughput, iteration)
-                    writer.add_scalar('token_throughput', token_throughput, iteration)
                 if wandb_writer:
                     wandb_writer.log({'throughput': throughput}, iteration)
-                    wandb_writer.log({'token_throughput': token_throughput}, iteration)
-
-
-        mfu = throughput / args.mfu_base_value * 100
-        if args.log_mfu:
-            log_string += f' mfu (TFLOPs/{args.mfu_base_value}): {mfu:.1f} |'
-            if args.log_timers_to_tensorboard: 
-                if writer:
-                    writer.add_scalar('mfu', mfu, iteration)
-                if wandb_writer:
-                    wandb_writer.log({'mfu': mfu}, iteration)
-            #wandb_writer.add_scalar(f'mfu (TFLOPs/{args.mfu_base_value})', mfu, iteration)   
-
         # Decoupled_learning_rate should be not None only on first and last pipeline stage.
         log_string += f' learning rate: {learning_rate:.6E} |'
         if args.decoupled_lr is not None and (mpu.is_pipeline_first_stage(ignore_virtual=True) or

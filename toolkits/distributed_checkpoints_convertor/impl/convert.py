@@ -66,7 +66,7 @@ def add_args(parser):
     return parser
 
 if __name__ == '__main__':
-    #megatron_xpu_init(use_version="0.12.2")
+    megatron_xpu_init(use_version="0.12.2")
     start_time = time.time()
     initialize_megatron(extra_args_provider=add_args, allow_no_cuda=True)
     args = get_args()

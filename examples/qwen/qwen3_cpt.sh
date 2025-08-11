@@ -218,8 +218,8 @@ elif [ $MODEL_SIZE = A3B ]; then
     ROUTER_TOPK=8
     RMS_NORM_EPS=1e-6
 
-    #--moe-grouped-gemm \
     moe_options=" \
+    	--moe-grouped-gemm \
         --moe-token-dispatcher-type alltoall \
         --moe-router-topk ${ROUTER_TOPK} \
         --num-experts ${NUM_EXPERTS} \
@@ -252,8 +252,8 @@ elif [ $MODEL_SIZE = A22B ]; then
     ROUTER_TOPK=8
     RMS_NORM_EPS=1e-6
 
-    #--moe-grouped-gemm \
     moe_options=" \
+    	--moe-grouped-gemm \
         --moe-token-dispatcher-type alltoall \
         --moe-router-topk ${ROUTER_TOPK} \
         --num-experts ${NUM_EXPERTS} \

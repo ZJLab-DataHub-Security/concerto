@@ -116,8 +116,8 @@ def get_batch(data_iterator):
                 seqlens = start_indices[1:] - start_indices[:-1]
                 if seqlens.shape != torch.Size([0]):
                     # NOTE: cu_seqlens: [0, A1, A1+A2, A1+A2+A3, ..., seq_len]
-                    cu_seqlens = torch.zeros(start_indices.shape[0] + 1, device=position_ids.device, dtype=torch.int)
-                    # cu_seqlens = torch.zeros(start_indices.shape[0] + 1, device="cpu", dtype=torch.int)
+                    # cu_seqlens = torch.zeros(start_indices.shape[0] + 1, device=position_ids.device, dtype=torch.int)
+                    cu_seqlens = torch.zeros(start_indices.shape[0] + 1, device="cpu", dtype=torch.int)
                     cu_seqlens[1:-1] = torch.cumsum(seqlens, dim=0)
                     cu_seqlens[-1] = position_ids.shape[0]
                     max_seqlen = torch.max(seqlens.max(), position_ids.max() + 1)
