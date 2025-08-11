@@ -40,6 +40,7 @@ ONLINE_PACKING=${ONLINE_PACKING:-false}
 RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-block}
 MP_AC_LAYERS=${MP_AC_LAYERS:-46}
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
+LR_WARMUP=${LR_WARMUP:-0.1}
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
 PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_e8/}
 #DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/mmap_qwen3_datasets_text_document}
@@ -395,7 +396,8 @@ fi
 
 if [ $PRETRAIN_CHECKPOINT_PATH != none ]; then
     load_option=" \
-            --load $PRETRAIN_CHECKPOINT_PATH"
+            --load $PRETRAIN_CHECKPOINT_PATH \
+	    --auto-detect-ckpt-format"
 fi
 
 if [ $OPTIMIZER_OFFLOAD != false ]; then
@@ -437,7 +439,8 @@ elif [ ${MP_SFT_PACKING} = true ]; then
       --reset-position-ids \
       --no-create-attention-mask-in-dataloader "
 else
-    packing_options=""
+    packing_options=" \
+      --no-create-attention-mask-in-dataloader "
 fi
 
 ##### Prepare logdirs #######
@@ -466,6 +469,7 @@ if [ -z ${CPT_CONTINUE} ] || [ ${CPT_CONTINUE} = false ]; then
      --no-load-rng "
 elif [ ${CPT_CONTINUE} = true ];  then
     cpt_continue_options="\
+	--no-load-optim \
         --no-load-rng "
 fi
 
@@ -483,8 +487,8 @@ megatron_options="  \
         --init-method-std 0.008 \
         --attention-dropout 0.0 \
         --hidden-dropout 0.0 \
-        --lr-warmup-fraction 0.1 \
-        --train-samples ${TRAIN_SAMPLES}
+        --lr-warmup-fraction ${LR_WARMUP} \
+        --train-samples ${TRAIN_SAMPLES} \
         --micro-batch-size ${BATCH_SIZE} \
         --global-batch-size ${GLOBAL_BATCH_SIZE} \
         --num-layers ${NUM_LAYERS} \
@@ -525,6 +529,7 @@ megatron_options="  \
         --qk-layernorm \
         --kv-channels 128 \
         --use-cpu-initialization \
+	--no-gradient-accumulation-fusion \
         "
 
 if [[ -z ${LOG_FILE} ]];then
