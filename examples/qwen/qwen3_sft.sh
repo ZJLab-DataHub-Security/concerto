@@ -6,12 +6,12 @@ ROOT_DIR=$( dirname -- "$( readlink -f -- "$0"; )"; )
 ROOT_DIR=${ROOT_DIR}/../.. #v5000_megatron
 echo $ROOT_DIR
 
-MEGATRON_PATH=/workspace/KLX-Megatron/
+MEGATRON_PATH=/workspace/Megatron-LM/
 #export LD_LIBRARY_PATH=/mnt/v5000-megatron/v5000-megatron/liusong/output/so:$LD_LIBRARY_PATH
 export PYTHONPATH=${PYTHONPATH}:${ROOT_DIR}:${MEGATRON_PATH}
 
 ### BASE CONFIG ###
-MODEL_SIZE=A3B
+MODEL_SIZE=${MODEL_SIZE:-A3B}
 BATCH_SIZE=1
 GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-32}
 LR=1e-5
@@ -36,14 +36,15 @@ SFT=true
 
 ### OTHERS ###
 AC=${AC:-full}
-ONLINE_PACKING=${ONLINE_PACKING:-true}
+ONLINE_PACKING=${ONLINE_PACKING:-false}
 RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-block}
 MP_AC_LAYERS=${MP_AC_LAYERS:-46}
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
+LR_WARMUP=${LR_WARMUP:-0.1}
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
-PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/zj-gpfs/home/qianhao/models/mcore_qwen3_a3b_t4_e8/}
-#DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/qwen3_32b_sample_long_sft_32k_pack_text_document}
-DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/tianqing-sample/sft-sample.jsonl}
+PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_e8/}
+#DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/tianqing-sample/sft-sample.jsonl}
+DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/qianhao/data/geo-360k-geo33kfix-36kpaper-with-channel_text_document}
 VALID_DATASET_PATH=${DATASET_PATH}
 
 MP_SFT_PACKING=true
@@ -215,8 +216,8 @@ elif [ $MODEL_SIZE = A3B ]; then
     ROUTER_TOPK=8
     RMS_NORM_EPS=1e-6
 
-    #--moe-grouped-gemm \
     moe_options=" \
+    	--moe-grouped-gemm \
         --moe-token-dispatcher-type alltoall \
         --moe-router-topk ${ROUTER_TOPK} \
         --num-experts ${NUM_EXPERTS} \
@@ -249,8 +250,8 @@ elif [ $MODEL_SIZE = A22B ]; then
     ROUTER_TOPK=8
     RMS_NORM_EPS=1e-6
 
-    #--moe-grouped-gemm \
     moe_options=" \
+    	--moe-grouped-gemm \
         --moe-token-dispatcher-type alltoall \
         --moe-router-topk ${ROUTER_TOPK} \
         --num-experts ${NUM_EXPERTS} \
@@ -393,7 +394,8 @@ fi
 
 if [ $PRETRAIN_CHECKPOINT_PATH != none ]; then
     load_option=" \
-            --load $PRETRAIN_CHECKPOINT_PATH"
+            --load $PRETRAIN_CHECKPOINT_PATH \
+	    --auto-detect-ckpt-format"
 fi
 
 if [ $OPTIMIZER_OFFLOAD != false ]; then
@@ -427,7 +429,6 @@ else
         --dataset MMAP \
         --split 99,1,0 "
 fi
-
 if [ ${ONLINE_PACKING} = true ]; then
     packing_options=" \
       --online-packing "
@@ -436,7 +437,8 @@ elif [ ${MP_SFT_PACKING} = true ]; then
       --reset-position-ids \
       --no-create-attention-mask-in-dataloader "
 else
-    packing_options=""
+    packing_options=" \
+      --no-create-attention-mask-in-dataloader "
 fi
 
 ##### Prepare logdirs #######
@@ -482,8 +484,8 @@ megatron_options="  \
         --init-method-std 0.008 \
         --attention-dropout 0.0 \
         --hidden-dropout 0.0 \
-        --lr-warmup-fraction 0.1 \
-	--train-samples ${TRAIN_SAMPLES} \
+        --lr-warmup-fraction ${LR_WARMUP} \
+        --train-samples ${TRAIN_SAMPLES} \
         --micro-batch-size ${BATCH_SIZE} \
         --global-batch-size ${GLOBAL_BATCH_SIZE} \
         --num-layers ${NUM_LAYERS} \
@@ -515,7 +517,6 @@ megatron_options="  \
         --position-embedding-type rope \
         --disable-bias-linear \
         --rotary-base ${ROPE_THETA} \
-        --no-save-optim \
         --no-rope-fusion \
         --moe-token-dispatcher-type alltoall \
         --ckpt-format torch_dist \

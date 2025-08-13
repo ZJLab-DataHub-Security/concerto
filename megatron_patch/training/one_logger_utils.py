@@ -1,7 +1,7 @@
 # Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
 import time, os
 
-from .global_vars import get_one_logger, get_args
+from megatron.training.global_vars import get_one_logger, get_args
 
 _one_logger_utils_version = "1.1.0-mlm"
 

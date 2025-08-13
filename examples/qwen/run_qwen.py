@@ -213,4 +213,5 @@ if __name__ == "__main__":
         ModelType.encoder_or_decoder,
         forward_step,
         extra_args_provider=get_patch_args,
+        dataloader_provider_func=build_data_loader
     )

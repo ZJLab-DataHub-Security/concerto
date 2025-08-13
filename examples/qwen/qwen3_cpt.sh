@@ -43,8 +43,6 @@ OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
 LR_WARMUP=${LR_WARMUP:-0.1}
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
 PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_e8/}
-#DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/mmap_qwen3_datasets_text_document}
-#DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/qianhao/data/cpt-sample.jsonl}
 #DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/john.ly/datasets/data-cpt/common-cpt-exp-5B.jsonl}
 DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/qianhao/data/mmap_qwen3_datasets_text_document}
 VALID_DATASET_PATH=${DATASET_PATH}
@@ -520,7 +518,6 @@ megatron_options="  \
         --position-embedding-type rope \
         --disable-bias-linear \
         --rotary-base ${ROPE_THETA} \
-        --no-save-optim \
         --no-rope-fusion \
         --moe-token-dispatcher-type alltoall \
         --ckpt-format torch_dist \

@@ -1,0 +1,1 @@
+./run_build_idxmap_sft_dataset.sh /mnt/geogpt-training/data/datasets/geo-sft/Reasoning/v1.6-Mix-with-channel/geo-360k-geo33kfix-36kpaper-with-channel.jsonl Qwen3Tokenizer 32768 /mnt/geogpt-training/home/qianhao/data/geo-360k-geo33kfix-36kpaper-with-channel /mnt/geogpt-training/data/models/public/Qwen/Qwen3/Qwen3-30B-A3B-Base/
