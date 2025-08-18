@@ -50,7 +50,7 @@ DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/qianhao/data/geo-360k-geo
 VALID_DATASET_PATH=${DATASET_PATH}
 
 MP_SFT_PACKING=true
-CPT_CONTINUE=false
+# CPT_CONTINUE=false
 
 # the following two values will not be used when SFT is true
 TRAIN_SAMPLES=${TRAIN_SAMPLES:-2000} 
@@ -429,6 +429,7 @@ else
     dataset_options=" \
         --data-path ${DATASET_PATH} \
         --dataset MMAP \
+        --dataloader-type cyclic \
         --split 99,1,0 "
 fi
 if [ ${ONLINE_PACKING} = true ]; then
