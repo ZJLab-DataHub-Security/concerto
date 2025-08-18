@@ -19,6 +19,8 @@ MIN_LR=1e-6
 SEQ_LEN=${SEQ_LEN:-32768}
 PAD_LEN=${SEQ_LEN}
 PR=${PR:-bf16}
+LOAD_OPTIM=${LOAD_OPTIM:-true}
+LOAD_RNG=${LOAD_RNG:-true}
 ### BASE CONFIG ###
 
 ### PARALLEL / BOOL OPTION ###
@@ -461,14 +463,16 @@ if [ $SAVE_CKPT = true ]; then
         --ckpt-format torch_dist "
 fi
 
-if [ -z ${CPT_CONTINUE} ] || [ ${CPT_CONTINUE} = false ]; then
-    cpt_continue_options="\
-     --no-load-optim \
-     --no-load-rng "
-elif [ ${CPT_CONTINUE} = true ];  then
-    cpt_continue_options="\
-	--no-load-optim \
-        --no-load-rng "
+cpt_continue_options=""
+if [ ${LOAD_OPTIM} = false ]; then
+    cpt_continue_options=" \
+            ${cpt_continue_options} \
+            --no-load-optim "
+fi
+if [ ${LOAD_RNG} = false ]; then
+    cpt_continue_options=" \
+            ${cpt_continue_options} \
+            --no-load-rng "
 fi
 
 find -L ${PRETRAIN_CHECKPOINT_PATH} -maxdepth 1 -type f -name "*.json" -print0 | xargs -0 cp -t ${SAVED_PRETRAIN_CHECKPOINT_PATH}
