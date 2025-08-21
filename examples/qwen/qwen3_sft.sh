@@ -44,9 +44,9 @@ MP_AC_LAYERS=${MP_AC_LAYERS:-46}
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
 LR_WARMUP=${LR_WARMUP:-0.1}
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
-PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_e8/}
+PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/zj-gpfs/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_e8}
 #DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/tianqing-sample/sft-sample.jsonl}
-DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/qianhao/data/geo-360k-geo33kfix-36kpaper-with-channel_text_document}
+DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/qwen3_32b_sample_long_sft_32k_pack_text_document}
 VALID_DATASET_PATH=${DATASET_PATH}
 
 MP_SFT_PACKING=true
