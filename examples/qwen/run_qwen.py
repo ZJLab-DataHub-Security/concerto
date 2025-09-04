@@ -135,7 +135,6 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel]:
             rope_scaling=args.use_rope_scaling,
             mtp_block_spec=mtp_block_spec,
         )
-        print(f"model={model}")
 
     return model
 
@@ -180,10 +179,10 @@ def build_data_loader(dataset, consumed_samples):
         data_collator = None
         tokenizer = get_tokenizer()
         if args.train_mode == 'pretrain':
-            data_collator = DataCollatorForCPTRawText(tokenizer=tokenizer.tokenizer)
-            data_concator = CPTConcatFn(args.micro_batch_size, args.seq_length)
+            data_collator = DataCollatorForCPTRawText(tokenizer=tokenizer)
+            data_concator = CPTConcatFn(args.micro_batch_size, args.seq_length, tokenizer.pad_token_id)
         elif args.train_mode == 'finetune':
-            data_collator = DataCollatorForSFTRawText(tokenizer=tokenizer.tokenizer, max_padding_length=args.seq_length)
+            data_collator = DataCollatorForSFTRawText(tokenizer=tokenizer, max_padding_length=args.seq_length)
             data_concator = SFTConcatFn(args.micro_batch_size, args.seq_length, tokenizer.pad_token_id)
         # DataLoaderWithDataConcatingIterator only support num_workers>0
         dataloader = DataLoaderWithDataConcatingIterator(dataset=dataset,
@@ -191,8 +190,10 @@ def build_data_loader(dataset, consumed_samples):
                                                         num_workers=1,
                                                         pin_memory=True,
                                                         persistent_workers=True,
+                                                        prefetch_factor=2,
                                                         collate_fn=data_collator,
-                                                        concat_fn=data_concator
+                                                        concat_fn=data_concator,
+                                                        train_mode=args.train_mode,
                                                         )
     else:
         dataloader = torch.utils.data.DataLoader(dataset,

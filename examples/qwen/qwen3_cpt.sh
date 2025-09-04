@@ -21,12 +21,14 @@ PAD_LEN=${SEQ_LEN}
 PR=${PR:-bf16}
 LOAD_OPTIM=${LOAD_OPTIM:-true}
 LOAD_RNG=${LOAD_RNG:-true}
+MOE_AUX_LOSS_COEFF=${MOE_AUX_LOSS_COEFF:-0.001}
+WEIGHT_DECAY=${WEIGHT_DECAY:-0.01}
 ### BASE CONFIG ###
 
 ### PARALLEL / BOOL OPTION ###
 TP=${TP:-4}
-PP=${PP:-1}
-EP=${EP:-8}
+PP=${PP:-2}
+EP=${EP:-4}
 ETP=${ETP:-1}
 CP=1
 SP=true
@@ -38,15 +40,16 @@ SFT=false
 
 ### OTHERS ###
 AC=${AC:-full}
-ONLINE_PACKING=${ONLINE_PACKING:-false}
+ONLINE_PACKING=${ONLINE_PACKING:-true}
+CHANNEL_LOSS=${CHANNEL_LOSS:-true}
 RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-block}
 MP_AC_LAYERS=${MP_AC_LAYERS:-46}
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
 LR_WARMUP=${LR_WARMUP:-0.1}
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
-PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_e8/}
-#DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/john.ly/datasets/data-cpt/common-cpt-exp-5B.jsonl}
-DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/qianhao/data/mmap_qwen3_datasets_text_document}
+PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_p2_e4/}
+DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/john.ly/datasets/data-cpt/common-cpt-exp-5B.jsonl}
+#DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/qianhao/data/debug/mmap_qwen3_datasets_text_document}
 VALID_DATASET_PATH=${DATASET_PATH}
 
 MP_SFT_PACKING=false
@@ -227,7 +230,7 @@ elif [ $MODEL_SIZE = A3B ]; then
         --expert-model-parallel-size ${EP} \
         --moe-ffn-hidden-size ${MOE_INTERMEDIATE_SIZE} \
         --moe-router-load-balancing-type aux_loss \
-        --moe-aux-loss-coeff 0.001 \
+        --moe-aux-loss-coeff ${MOE_AUX_LOSS_COEFF} \
         --moe-layer-freq '([1]*48)' \
         "
 
@@ -261,7 +264,7 @@ elif [ $MODEL_SIZE = A22B ]; then
         --expert-model-parallel-size ${EP} \
         --moe-ffn-hidden-size ${MOE_INTERMEDIATE_SIZE} \
         --moe-router-load-balancing-type aux_loss \
-        --moe-aux-loss-coeff 0.001 \
+        --moe-aux-loss-coeff ${MOE_AUX_LOSS_COEFF} \
         --moe-layer-freq '([1]*94)' \
         --moe-router-pre-softmax
         "
@@ -428,13 +431,20 @@ if [ ${MP_DATASET_TYPE} = "raw" ]; then
 else 
     dataset_options=" \
         --data-path ${DATASET_PATH} \
-        --dataset MMAP \
         --dataloader-type cyclic \
+        --dataset MMAP \
         --split 99,1,0 "
 fi
 if [ ${ONLINE_PACKING} = true ]; then
     packing_options=" \
-      --online-packing "
+      --online-packing \
+      --no-create-attention-mask-in-dataloader "
+    if [ ${CHANNEL_LOSS} = true ]; then
+        packing_options=" \
+          --online-packing \
+	      --no-create-attention-mask-in-dataloader \
+	      --calc-channel-loss"
+    fi
 elif [ ${MP_SFT_PACKING} = true ]; then
     packing_options=" \
       --reset-position-ids \
@@ -483,7 +493,7 @@ megatron_options="  \
         --lr ${LR} \
         --min-lr ${MIN_LR} \
         --lr-decay-style cosine \
-        --weight-decay 0.01 \
+        --weight-decay ${WEIGHT_DECAY} \
         --adam-beta1 0.9 \
         --adam-beta2 0.95 \
         --clip-grad 1.0 \
@@ -503,7 +513,7 @@ megatron_options="  \
         --max-padding-length ${PAD_LEN} \
         --log-interval 1 \
         --log-throughput \
-	--log-mfu \
+        --log-mfu \
         --eval-interval 10000 \
         --eval-iters 0 \
         --tensorboard-queue-size 1 \
@@ -531,7 +541,7 @@ megatron_options="  \
         --qk-layernorm \
         --kv-channels 128 \
         --use-cpu-initialization \
-	--no-gradient-accumulation-fusion \
+        --no-gradient-accumulation-fusion \
         "
 
 if [[ -z ${LOG_FILE} ]];then

@@ -8,49 +8,68 @@ import threading
 import itertools
 from typing import Union
 import torch
-#import torch.multiprocessing as multiprocessing
+# import torch.multiprocessing as multiprocessing
 import multiprocessing
 from torch._utils import ExceptionWrapper
 from torch.utils.data import SequentialSampler, IterDataPipe, MapDataPipe, _utils
 from torch.utils.data.dataloader import DataLoader, _BaseDataLoaderIter, _MultiProcessingDataLoaderIter, _DatasetKind, _sharding_worker_init_fn
 from torch.utils.data._utils.worker import _IterableDatasetStopIteration
 
-from transformers import AutoTokenizer
-
-def convert_result_list_to_tensor(result):
-    for key in result:
-        if isinstance(result[key], list):
-            result[key] = torch.tensor(result[key], dtype=torch.long)
-    return result
+def convert_result_list_to_tensor(result, train_mode, pad_token_id):
+    if train_mode == 'finetune':
+        return {'tokens': torch.tensor(result.result, dtype=torch.long), 'channels': result.channels}
+    if train_mode == 'pretrain':
+        tensor_result = torch.tensor(result.result, dtype=torch.long)
+        tokens = tensor_result[:,:-1].contiguous()
+        labels = tensor_result[:,1:].contiguous()
+        loss_mask = torch.ones(tokens.shape[0], tokens.shape[1], dtype=torch.float)
+        position_ids = torch.arange(tokens.shape[1], dtype=torch.long).repeat(tokens.shape[0],1).contiguous()
+        loss_mask[labels == pad_token_id] = 0.0
+        tokens[tokens == pad_token_id] = 0
+        labels[labels == pad_token_id] = 0
+        return {
+            "tokens": tokens,
+            "labels": labels,
+            "loss_mask": loss_mask,
+            "position_ids": position_ids,
+            "channels": result.channels
+        }
 
 def index_loop(index_queues, sampler_iter, num_workers, prefetch_factor,
         worker_queue_idx_cycle, send_idx, task_info, worker_status, done_event):
+    index_cache = []
+    cache_size = 128
     while not done_event.is_set():
         worker_queue_idx = next(worker_queue_idx_cycle)
         if not worker_status[worker_queue_idx]:
             continue
         index_queue = index_queues[worker_queue_idx]
         if index_queue.qsize() < prefetch_factor:
-            try:
-                index=next(sampler_iter)
-            except StopIteration:
-                index_queue.put((send_idx, _IterableDatasetStopIteration(worker_queue_idx)))
-                done_event.set()
-                break
-            index_queue.put((send_idx, index))
-            task_info[send_idx] = (worker_queue_idx,)
-            send_idx += 1
+            if len(index_cache) < cache_size:
+                try:
+                    index=next(sampler_iter)
+                    index_cache.append((send_idx, index))
+                    task_info[send_idx] = (worker_queue_idx,)
+                    send_idx += 1
+                except StopIteration:
+                    index_cache.append((send_idx, _IterableDatasetStopIteration(worker_queue_idx)))
+                    index_queue.put(index_cache)
+                    index_cache = []
+                    done_event.set()
+                    break
+            else:
+                index_queue.put(index_cache)
+                index_cache = []
         else:
             time.sleep(0.05)
 
 def worker_loop(dataset_kind, dataset, index_queue, prefetch_factor, data_queue, done_event,
                  auto_collation, collate_fn, drop_last, base_seed, init_fn, worker_id,
-                 num_workers, persistent_workers, shared_seed, concat_fn):
+                 num_workers, persistent_workers, shared_seed, concat_fn, result_queue):
     # See NOTE [ Data Loader Multiprocessing Shutdown Logic ] for details on the
     # logic of this function.
     from torch.utils.data._utils import signal_handling, HAS_NUMPY, MP_STATUS_CHECK_INTERVAL
     from torch.utils.data._utils.worker import _generate_state, WorkerInfo, ManagerWatchdog, _ResumeIteration
-
     try:
         # Initialize C side signal handlers for SIGBUS and SIGSEGV. Python signal
         # module's handlers are executed after Python returns from C low-level
@@ -109,31 +128,33 @@ def worker_loop(dataset_kind, dataset, index_queue, prefetch_factor, data_queue,
         iteration_end = False
 
         watchdog = ManagerWatchdog()
-
-        concating_data = {}
+        index_cache = []
+        cache_pointer = 0
         while watchdog.is_alive():
-            if data_queue.qsize() > prefetch_factor:
-                time.sleep(0.05)
+            if result_queue.qsize() > prefetch_factor:
+                time.sleep(0.1)
                 continue
-            try:
-                r = index_queue.get(timeout=MP_STATUS_CHECK_INTERVAL)
-            except queue.Empty:
-                continue
-            if isinstance(r, _ResumeIteration):
+            if isinstance(index_cache, _ResumeIteration) or cache_pointer >= len(index_cache) or iteration_end:
+                cache_pointer = 0
+                try:
+                    index_cache = index_queue.get(timeout=MP_STATUS_CHECK_INTERVAL)
+                except queue.Empty:
+                    continue
+            if isinstance(index_cache, _ResumeIteration):
                 # Acknowledge the main process
-                data_queue.put((r, None))
+                data_queue.put((index_cache, None))
                 iteration_end = False
 
                 if isinstance(dataset, IterDataPipe):
-                    assert r.seed is not None
-                    shared_rng.manual_seed(r.seed)
+                    assert index_cache.seed is not None
+                    shared_rng.manual_seed(index_cache.seed)
                     dataset = apply_random_seed(dataset, shared_rng)
 
                 # Recreate the fetcher for worker-reuse policy
                 fetcher = _DatasetKind.create_fetcher(
                     dataset_kind, dataset, auto_collation, collate_fn, drop_last)
                 continue
-            elif r is None:
+            elif index_cache is None:
                 # Received the final signal
                 assert done_event.is_set() or iteration_end
                 break
@@ -143,6 +164,8 @@ def worker_loop(dataset_kind, dataset, index_queue, prefetch_factor, data_queue,
                 # processing steps.
                 continue
             else:
+                r = index_cache[cache_pointer]
+                cache_pointer += 1
                 idx, index = r
                 data: Union[_IterableDatasetStopIteration, ExceptionWrapper]
                 if init_exception is not None:
@@ -169,12 +192,10 @@ def worker_loop(dataset_kind, dataset, index_queue, prefetch_factor, data_queue,
                             # See NOTE [ Python Traceback Reference Cycle Problem ]
                             data = ExceptionWrapper(
                                 where=f"in DataLoader worker process {worker_id}")
-            if len(concating_data) == 0:
-                for key in data:
-                    concating_data[key]=[]
-            result = concat_fn(concating_data, data)
-            if result is not None:
+            result = concat_fn(data)
+            while result is not None:
                 data_queue.put((idx, result))
+                result = concat_fn(None)
             del data, idx, index, r  # save memory
     except KeyboardInterrupt:
         # Main process will raise KeyboardInterrupt anyways.
@@ -187,6 +208,8 @@ class DataConcatingMultiProcessingDataLoaderIter(_MultiProcessingDataLoaderIter)
     def __init__(self, loader):
         _BaseDataLoaderIter.__init__(self, loader)
         self._concat_fn = loader._concat_fn
+        self._train_mode = loader._train_mode
+        self.consumed_samples = 0
 
         self._prefetch_factor = loader.prefetch_factor
 
@@ -214,6 +237,7 @@ class DataConcatingMultiProcessingDataLoaderIter(_MultiProcessingDataLoaderIter)
 
         self._index_queues = []
         self._workers = []
+        self._data_queue = multiprocessing_context.Queue()  # type: ignore[var-annotated]
         for i in range(self._num_workers):
             # No certainty which module multiprocessing_context is
             index_queue = multiprocessing_context.Queue()  # type: ignore[var-annotated]
@@ -226,7 +250,7 @@ class DataConcatingMultiProcessingDataLoaderIter(_MultiProcessingDataLoaderIter)
                       self._worker_result_queue, self._workers_done_event, self._auto_collation,
                       self._collate_fn, self._drop_last, self._base_seed, self._worker_init_fn,
                       i, self._num_workers, self._persistent_workers, self._shared_seed,
-                      self._concat_fn))
+                      self._concat_fn, self._data_queue))
             w.daemon = True
             # NB: Process.start() actually take some time as it needs to
             #     start a process and pass the arguments over via a pipe.
@@ -250,7 +274,6 @@ class DataConcatingMultiProcessingDataLoaderIter(_MultiProcessingDataLoaderIter)
             self._pin_memory_thread_done_event = threading.Event()
 
             # Queue is not type-annotated
-            self._data_queue = queue.Queue()  # type: ignore[var-annotated]
             if self._pin_memory_device == "xpu":
                 current_device = torch.xpu.current_device()  # type: ignore[attr-defined]
             elif self._pin_memory_device == torch._C._get_privateuse1_backend_name():
@@ -309,6 +332,10 @@ class DataConcatingMultiProcessingDataLoaderIter(_MultiProcessingDataLoaderIter)
         # Reset the worker queue cycle so it resumes next epoch at worker 0
         self._worker_queue_idx_cycle = itertools.cycle(range(self._num_workers))
         # We resume the prefetching in case it was enabled
+        if loader.multiprocessing_context is None:
+            multiprocessing_context = multiprocessing
+        else:
+            multiprocessing_context = loader.multiprocessing_context
         self.index_put_done_event.set()
         if hasattr(self, "_index_put_thread"):
             self._index_put_thread.join()
@@ -322,7 +349,7 @@ class DataConcatingMultiProcessingDataLoaderIter(_MultiProcessingDataLoaderIter)
                     assert return_data is None
                     resume_iteration_cnt -= 1
         self.index_put_done_event.clear()
-        index_put_thread = threading.Thread(
+        index_put_thread = multiprocessing_context.Process(
             target=index_loop,
             args=(self._index_queues, self._sampler_iter, self._num_workers,
                 self._prefetch_factor, self._worker_queue_idx_cycle,
@@ -338,12 +365,12 @@ class DataConcatingMultiProcessingDataLoaderIter(_MultiProcessingDataLoaderIter)
             if isinstance(data, _utils.worker._IterableDatasetStopIteration):
                 if self._persistent_workers:
                     self._workers_status[data.worker_id] = False
-                else:
-                    self._mark_worker_as_unavailable(data.worker_id)
-                    self._shutdown_workers()
+                # else:
+                #     self._mark_worker_as_unavailable(data.worker_id)
+                #     self._shutdown_workers()
                 raise StopIteration
-
-            result = convert_result_list_to_tensor(data)
+            self.consumed_samples += data.length
+            result = convert_result_list_to_tensor(data, self._train_mode, self._concat_fn.pad_token_id)
             return result
 
     def _shutdown_workers(self):
@@ -356,6 +383,8 @@ class DataLoaderWithDataConcatingIterator(DataLoader):
     def __init__(self, **kwargs):
         if 'concat_fn' in kwargs:
             self._concat_fn = kwargs.pop('concat_fn')
+        if 'train_mode' in kwargs:
+            self._train_mode = kwargs.pop('train_mode')
         super().__init__(**kwargs)
         assert self.num_workers > 0
 

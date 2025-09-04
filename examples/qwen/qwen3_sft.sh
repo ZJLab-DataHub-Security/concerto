@@ -21,6 +21,8 @@ PAD_LEN=${SEQ_LEN}
 PR=${PR:-bf16}
 LOAD_OPTIM=${LOAD_OPTIM:-true}
 LOAD_RNG=${LOAD_RNG:-true}
+MOE_AUX_LOSS_COEFF=${MOE_AUX_LOSS_COEFF:-0.001}
+WEIGHT_DECAY=${WEIGHT_DECAY:-0.01}
 ### BASE CONFIG ###
 
 ### PARALLEL / BOOL OPTION ###
@@ -39,6 +41,7 @@ SFT=true
 ### OTHERS ###
 AC=${AC:-full}
 ONLINE_PACKING=${ONLINE_PACKING:-false}
+
 RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-block}
 MP_AC_LAYERS=${MP_AC_LAYERS:-46}
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
@@ -227,7 +230,7 @@ elif [ $MODEL_SIZE = A3B ]; then
         --expert-model-parallel-size ${EP} \
         --moe-ffn-hidden-size ${MOE_INTERMEDIATE_SIZE} \
         --moe-router-load-balancing-type aux_loss \
-        --moe-aux-loss-coeff 0.001 \
+        --moe-aux-loss-coeff ${MOE_AUX_LOSS_COEFF} \
         --moe-layer-freq '([1]*48)' \
         "
 
@@ -261,7 +264,7 @@ elif [ $MODEL_SIZE = A22B ]; then
         --expert-model-parallel-size ${EP} \
         --moe-ffn-hidden-size ${MOE_INTERMEDIATE_SIZE} \
         --moe-router-load-balancing-type aux_loss \
-        --moe-aux-loss-coeff 0.001 \
+        --moe-aux-loss-coeff ${MOE_AUX_LOSS_COEFF} \
         --moe-layer-freq '([1]*94)' \
         --moe-router-pre-softmax
         "
@@ -434,7 +437,16 @@ else
 fi
 if [ ${ONLINE_PACKING} = true ]; then
     packing_options=" \
-      --online-packing "
+      --online-packing \
+      --reset-position-ids \
+      --no-create-attention-mask-in-dataloader "
+    if [ ${CHANNEL_LOSS} = true ]; then
+        packing_options=" \
+          --online-packing \
+          --reset-position_ids \
+	      --no-create-attention-mask-in-dataloader \
+	      --calc-channel-loss"
+    fi
 elif [ ${MP_SFT_PACKING} = true ]; then
     packing_options=" \
       --reset-position-ids \
@@ -483,7 +495,7 @@ megatron_options="  \
         --lr ${LR} \
         --min-lr ${MIN_LR} \
         --lr-decay-style cosine \
-        --weight-decay 0.01 \
+        --weight-decay ${WEIGHT_DECAY} \
         --adam-beta1 0.9 \
         --adam-beta2 0.95 \
         --clip-grad 1.0 \
