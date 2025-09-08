@@ -102,8 +102,8 @@ GPT_MODEL_ARGS=(
 )
 
 if [ $MODEL_SIZE = A22B ]; then
-        # --moe-grouped-gemm
     GPT_MODEL_ARGS+=(
+        --moe-grouped-gemm
         --num-layers 94
         --hidden-size 4096
         --ffn-hidden-size 12288
