@@ -622,6 +622,9 @@ def get_patch_args(parser):
     group.add_argument('--calc-channel-loss',
                     action='store_true',
                     help='If set, calculate loss group by channel')
+    group.add_argument('--freeze-moe-router',
+                    action='store_true',
+                    help='If set, freeze moe router gating module')
     group.add_argument('--te-spec-version',
                     type=str,
                     choices=["base", "tqlm"],

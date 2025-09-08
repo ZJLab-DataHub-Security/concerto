@@ -37,6 +37,7 @@ from megatron_patch.model.qwen3_moe.gpt_layer_specs import (
     get_gpt_layer_with_transformer_engine_spec,
     get_gpt_mtp_block_spec,
 )
+from megatron_patch.model.patch_config import PatchedTransformerConfig
 
 torch._dynamo.config.suppress_errors = True
 
@@ -80,7 +81,8 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel]:
     if args.yaml_cfg is not None:
         config = core_transformer_config_from_yaml(args, "language_model")
     else:
-        config = core_transformer_config_from_args(args)
+        config = core_transformer_config_from_args(args, config_class=PatchedTransformerConfig)
+    print(f"config={config}")
 
     if args.spec is not None:
         transformer_layer_spec = import_module(args.spec)

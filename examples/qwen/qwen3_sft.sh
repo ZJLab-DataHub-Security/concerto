@@ -41,7 +41,8 @@ SFT=true
 ### OTHERS ###
 AC=${AC:-full}
 ONLINE_PACKING=${ONLINE_PACKING:-false}
-
+CHANNEL_LOSS=${CHANNEL_LOSS:-false}
+FREEZE_MOE_ROUTER=${FREEZE_MOE_ROUTER:-false}
 RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-block}
 MP_AC_LAYERS=${MP_AC_LAYERS:-46}
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
@@ -455,7 +456,11 @@ else
     packing_options=" \
       --no-create-attention-mask-in-dataloader "
 fi
-
+if [ ${FREEZE_MOE_ROUTER} = true ]; then
+    moe_options=" \
+    ${moe_options} \
+    --freeze-moe-router"
+fi
 ##### Prepare logdirs #######
 CURRENT_TIME=$(date +"%m-%d-%H:%M")
 TASK_NAME="mcore-qwen3-${MODEL_SIZE}-${TASK}"

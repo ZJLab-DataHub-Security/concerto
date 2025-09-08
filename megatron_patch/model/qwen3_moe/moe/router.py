@@ -16,6 +16,10 @@ from .moe_utils import topk_softmax_with_capacity
 
 class TopKRouter(_TopKRuter):
     """Route each token to the top-k experts."""
+    def __init__(self, config):
+        super().__init__(config)
+        if hasattr(self.config, "freeze_moe_router") and self.config.freeze_moe_router:
+            self.weight.requires_grad = False
 
     def compute_routing_scores_for_aux_loss(self, logits: torch.Tensor) -> torch.Tensor:
         """Compute routing scores based on the score function.
@@ -144,7 +148,6 @@ class TopKRouter(_TopKRuter):
         if self.config.moe_token_dispatcher_type == "alltoall_seq":
             # Gather the logits from the TP region
             logits = gather_from_sequence_parallel_region(logits)
-
         if self.routing_type == "sinkhorn":
             scores, routing_map = self.sinkhorn_load_balancing(logits)
         elif self.routing_type == "aux_loss":

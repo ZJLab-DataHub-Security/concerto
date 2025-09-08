@@ -42,6 +42,7 @@ SFT=false
 AC=${AC:-full}
 ONLINE_PACKING=${ONLINE_PACKING:-true}
 CHANNEL_LOSS=${CHANNEL_LOSS:-true}
+FREEZE_MOE_ROUTER=${FREEZE_MOE_ROUTER:-false}
 RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-block}
 MP_AC_LAYERS=${MP_AC_LAYERS:-46}
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
@@ -318,9 +319,9 @@ if [ $AC = full ]; then
         echo "the num layers per pp rank must be a multiple of the recompute layers."
     fi
     activation_checkpoint_options=" \
-		    --recompute-method ${RECOMPUTE_METHOD} \
-            --recompute-num-layers ${MP_AC_LAYERS} \
-		    --recompute-granularity full"
+	--recompute-method ${RECOMPUTE_METHOD} \
+	--recompute-num-layers ${MP_AC_LAYERS} \
+	--recompute-granularity full"
 elif [ $AC = sel ]; then
     activation_checkpoint_options=" \
         --recompute-activations"
@@ -453,7 +454,11 @@ else
     packing_options=" \
       --no-create-attention-mask-in-dataloader "
 fi
-
+if [ ${FREEZE_MOE_ROUTER} = true ]; then
+    moe_options=" \
+    ${moe_options} \
+    --freeze-moe-router"
+fi
 ##### Prepare logdirs #######
 CURRENT_TIME=$(date +"%m-%d-%H:%M")
 TASK_NAME="mcore-qwen3-${MODEL_SIZE}-${TASK}"
