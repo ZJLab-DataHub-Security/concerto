@@ -48,8 +48,8 @@ MP_AC_LAYERS=${MP_AC_LAYERS:-46}
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
 LR_WARMUP=${LR_WARMUP:-0.1}
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
-PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_p2_e4/}
-DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/john.ly/datasets/data-cpt/common-cpt-exp-5B.jsonl}
+PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/zj-gpfs/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_p2_e4}
+DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/common-cpt-exp-debug.jsonl}
 #DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/qianhao/data/debug/mmap_qwen3_datasets_text_document}
 VALID_DATASET_PATH=${DATASET_PATH}
 

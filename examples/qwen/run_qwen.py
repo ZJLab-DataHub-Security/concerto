@@ -17,8 +17,6 @@ from contextlib import nullcontext
 import torch
 import torch._dynamo
 import inspect
-from xmegatron_ext import megatron_xpu_init
-megatron_xpu_init(use_version="0.12.2", check_version=False)
 from megatron.core import mpu
 from megatron.core.enums import ModelType
 from megatron.core.models.gpt import GPTModel

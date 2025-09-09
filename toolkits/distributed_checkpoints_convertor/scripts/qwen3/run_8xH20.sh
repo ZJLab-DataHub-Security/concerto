@@ -189,8 +189,8 @@ elif [ $MODEL_SIZE = 32B ]; then
         )
     fi
 elif [ $MODEL_SIZE = A3B ]; then
+        # --moe-grouped-gemm
     GPT_MODEL_ARGS+=(
-        --moe-grouped-gemm
         --num-layers 48
         --hidden-size 2048
         --ffn-hidden-size 6144
@@ -207,8 +207,8 @@ elif [ $MODEL_SIZE = A3B ]; then
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
             --tensor-model-parallel-size 4
-            --pipeline-model-parallel-size 1
-            --expert-model-parallel-size 8
+            --pipeline-model-parallel-size 2
+            --expert-model-parallel-size 4
             --expert-tensor-parallel-size 1
 	    --sequence-parallel
         )
