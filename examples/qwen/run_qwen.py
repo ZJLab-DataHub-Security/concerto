@@ -17,6 +17,8 @@ from contextlib import nullcontext
 import torch
 import torch._dynamo
 import inspect
+from xmegatron_ext import megatron_xpu_init
+megatron_xpu_init(use_version="0.12.2", check_version=False)
 from megatron.core import mpu
 from megatron.core.enums import ModelType
 from megatron.core.models.gpt import GPTModel
@@ -80,7 +82,6 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel]:
         config = core_transformer_config_from_yaml(args, "language_model")
     else:
         config = core_transformer_config_from_args(args, config_class=PatchedTransformerConfig)
-    print(f"config={config}")
 
     if args.spec is not None:
         transformer_layer_spec = import_module(args.spec)

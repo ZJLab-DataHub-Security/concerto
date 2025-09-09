@@ -41,21 +41,21 @@ def get_moe_module_spec(
 
     # experts spec
     if moe_grouped_gemm:
-        ## use GroupedMLP
-        #if use_te and TEColumnParallelGroupedLinear is not None and not moe_use_legacy_grouped_gemm:
-        #    ## use TEGroupedLinear
-        #    expert_module = TEGroupedMLP
-        #    expert_submodule = MLPSubmodules(
-        #        linear_fc1=TEColumnParallelGroupedLinear, linear_fc2=TERowParallelGroupedLinear
-        #    )
-        #else:
-            ## use legacy GroupedMLP
-        expert_module = GroupedMLP
-        expert_submodule = None
-        warnings.warn(
-            'The legacy GroupedMLP will be deprecated in Megatron-Core v0.12.0. '
-            'Please update the TransformerEngine to version>=1.7.0 and use TEGroupedMLP.'
-        )
+        # use GroupedMLP
+        if use_te and TEColumnParallelGroupedLinear is not None and not moe_use_legacy_grouped_gemm:
+            ## use TEGroupedLinear
+            expert_module = TEGroupedMLP
+            expert_submodule = MLPSubmodules(
+                linear_fc1=TEColumnParallelGroupedLinear, linear_fc2=TERowParallelGroupedLinear
+            )
+        else:
+           ## use legacy GroupedMLP
+            expert_module = GroupedMLP
+            expert_submodule = None
+            warnings.warn(
+                'The legacy GroupedMLP will be deprecated in Megatron-Core v0.12.0. '
+                'Please update the TransformerEngine to version>=1.7.0 and use TEGroupedMLP.'
+            )
     else:
         ## use SequentialMLP
         expert_module = SequentialMLP
