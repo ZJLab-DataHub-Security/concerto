@@ -23,7 +23,8 @@ try:
 except ImportError:
     HAVE_TE = False
 
-from .moe.moe_layer import MoELayer, MoESubmodules
+#from .moe.moe_layer import MoELayer, MoESubmodules
+from megatron.core.transformer.moe.moe_layer import MoELayer, MoESubmodules
 
 def get_moe_module_spec(
     use_te: Optional[bool] = True,
@@ -41,7 +42,7 @@ def get_moe_module_spec(
 
     # experts spec
     if moe_grouped_gemm:
-        # use GroupedMLP
+        ## use GroupedMLP
         if use_te and TEColumnParallelGroupedLinear is not None and not moe_use_legacy_grouped_gemm:
             ## use TEGroupedLinear
             expert_module = TEGroupedMLP

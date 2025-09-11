@@ -29,7 +29,13 @@ from megatron_patch.tokenizer import build_tokenizer, get_tokenizer
 from megatron_patch.arguments import get_patch_args
 from megatron_patch.data import train_valid_test_datasets_provider
 from megatron_patch.training import pretrain
-from megatron_patch.model.qwen3_moe.gpt_layer_specs import (
+#from megatron_patch.model.qwen3_moe.gpt_layer_specs import (
+#    get_gpt_decoder_block_spec,
+#    get_gpt_layer_local_spec,
+#    get_gpt_layer_with_transformer_engine_spec,
+#    get_gpt_mtp_block_spec,
+#)
+from megatron.core.models.gpt.gpt_layer_specs import (
     get_gpt_decoder_block_spec,
     get_gpt_layer_local_spec,
     get_gpt_layer_with_transformer_engine_spec,
