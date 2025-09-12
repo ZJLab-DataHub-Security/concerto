@@ -189,8 +189,8 @@ elif [ $MODEL_SIZE = 32B ]; then
         )
     fi
 elif [ $MODEL_SIZE = A3B ]; then
+        #--moe-grouped-gemm
     GPT_MODEL_ARGS+=(
-        --moe-grouped-gemm
         --num-layers 48
         --hidden-size 2048
         --ffn-hidden-size 6144

@@ -4,7 +4,7 @@ import time
 
 from importlib import import_module
 from functools import partial
-# from xmegatron_ext import megatron_xpu_init
+from xmegatron_ext import megatron_xpu_init
 # NOTE: Some models (e.g., moonlight) adopts a customed tokenizer, which 
 # requires trust_remote_code=True
 from megatron.training import global_vars
@@ -66,7 +66,7 @@ def add_args(parser):
     return parser
 
 if __name__ == '__main__':
-    # megatron_xpu_init(use_version="0.12.2")
+    megatron_xpu_init(use_version="0.12.2")
     start_time = time.time()
     initialize_megatron(extra_args_provider=add_args, allow_no_cuda=True)
     args = get_args()

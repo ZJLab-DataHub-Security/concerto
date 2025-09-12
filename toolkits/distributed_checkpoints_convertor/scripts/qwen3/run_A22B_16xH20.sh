@@ -2,7 +2,7 @@
 set -e
 CURRENT_DIR="$( cd "$( dirname "$0" )" && pwd )"
 CONVERTOR_DIR=$( dirname $( dirname ${CURRENT_DIR}))
-MEGATRON_PATH=/workspace/KLX-Megatron
+MEGATRON_PATH=/workspace/Megatron-LM
 
 export PYTHONPATH=${CONVERTOR_DIR}/impl:${MEGATRON_PATH}:$PYTHONPATH
 export CUDA_DEVICE_MAX_CONNECTIONS=1
@@ -103,7 +103,6 @@ GPT_MODEL_ARGS=(
 
 if [ $MODEL_SIZE = A22B ]; then
     GPT_MODEL_ARGS+=(
-        --moe-grouped-gemm
         --num-layers 94
         --hidden-size 4096
         --ffn-hidden-size 12288
