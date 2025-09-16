@@ -373,8 +373,8 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
     # Run training iterations till done.
     def finish_train(args, iteration):
-        if args.online_packing:
-            return args.consumed_train_samples >= args.train_samples
+        # if args.online_packing:
+        #     return args.consumed_train_samples >= args.train_samples
         return iteration >= args.train_iters
     while not finish_train(args, iteration):
         if args.profile and torch.distributed.get_rank() in args.profile_ranks:
