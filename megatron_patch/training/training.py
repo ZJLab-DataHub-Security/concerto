@@ -370,6 +370,12 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             "Parameter hashes not matching across DP replicas"
         torch.distributed.barrier()
         print_rank_0(f">>> Weight hashes match after {iteration} iterations...")
+    if args.online_packing and iteration > 0:
+        print_rank_0(f"resuming from dataloader")
+        t=time.time()
+        for _ in range(iteration):
+            dummy_train_step(train_data_iterator)
+        print_rank_0(f"resume done, time_cost: {time.time()-t}s")
 
     # Run training iterations till done.
     def finish_train(args, iteration):
