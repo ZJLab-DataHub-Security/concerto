@@ -150,7 +150,7 @@ def build_data_loader(dataset, consumed_samples):
     if args.dataloader_type == 'single':
         batch_sampler = MegatronPretrainingSampler(
             total_samples=len(dataset),
-            consumed_samples=consumed_samples,
+            consumed_samples=0 if args.online_packing else consumed_samples,
             micro_batch_size=args.micro_batch_size,
             data_parallel_rank=mpu.get_data_parallel_rank(),
             data_parallel_size=mpu.get_data_parallel_world_size())
@@ -158,7 +158,7 @@ def build_data_loader(dataset, consumed_samples):
         batch_sampler = MegatronPretrainingRandomSampler(
             dataset,
             total_samples=len(dataset),
-            consumed_samples=consumed_samples,
+            consumed_samples=0 if args.online_packing else consumed_samples,
             micro_batch_size=args.micro_batch_size,
             data_parallel_rank=mpu.get_data_parallel_rank(),
             data_parallel_size=mpu.get_data_parallel_world_size(),
@@ -195,6 +195,7 @@ def build_data_loader(dataset, consumed_samples):
                                                         collate_fn=data_collator,
                                                         concat_fn=data_concator,
                                                         train_mode=args.train_mode,
+                                                        consumed_samples=args.consumed_train_samples
                                                         )
     else:
         dataloader = torch.utils.data.DataLoader(dataset,
