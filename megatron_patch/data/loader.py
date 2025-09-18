@@ -209,7 +209,7 @@ class DataConcatingMultiProcessingDataLoaderIter(_MultiProcessingDataLoaderIter)
         _BaseDataLoaderIter.__init__(self, loader)
         self._concat_fn = loader._concat_fn
         self._train_mode = loader._train_mode
-        self.consumed_samples = 0
+        self.consumed_samples = loader._consumed_samples
 
         self._prefetch_factor = loader.prefetch_factor
 
@@ -385,6 +385,8 @@ class DataLoaderWithDataConcatingIterator(DataLoader):
             self._concat_fn = kwargs.pop('concat_fn')
         if 'train_mode' in kwargs:
             self._train_mode = kwargs.pop('train_mode')
+        if 'consumed_samples' in kwargs:
+            self._consumed_samples = kwargs.pop('consumed_samples')
         super().__init__(**kwargs)
         assert self.num_workers > 0
 
