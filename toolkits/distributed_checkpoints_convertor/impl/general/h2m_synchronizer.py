@@ -256,16 +256,16 @@ class HF2MGSynchronizer(BaseSynchronizer):
             self.copy(hf_layer.input_layernorm.weight, layer.input_layernorm.weight)
         else:  # 走的是这边的逻辑
             self.set_selfattn_state(layer.self_attention, hf_layer.self_attn)
-            # self.copy(hf_layer.input_layernorm.weight, layer.self_attention.linear_qkv.layer_norm_weight)
-            self.copy(hf_layer.input_layernorm.weight, layer.input_layernorm.weight)
+            self.copy(hf_layer.input_layernorm.weight, layer.self_attention.linear_qkv.layer_norm_weight)
+            # self.copy(hf_layer.input_layernorm.weight, layer.input_layernorm.weight)
         
         if hasattr(layer.mlp, 'router'):
             self.set_moe_layer_state(layer.mlp, hf_layer.mlp)
             self.copy(hf_layer.post_attention_layernorm.weight, layer.pre_mlp_layernorm.weight)
         else:
             self.set_mlp_state(layer.mlp, hf_layer.mlp)
-            # self.copy(hf_layer.post_attention_layernorm.weight, layer.mlp.linear_fc1.layer_norm_weight)
-            self.copy(hf_layer.post_attention_layernorm.weight, layer.pre_mlp_layernorm.weight)
+            self.copy(hf_layer.post_attention_layernorm.weight, layer.mlp.linear_fc1.layer_norm_weight)
+            # self.copy(hf_layer.post_attention_layernorm.weight, layer.pre_mlp_layernorm.weight)
 
     def check_and_save(self, output_dir):
         if self.debug:

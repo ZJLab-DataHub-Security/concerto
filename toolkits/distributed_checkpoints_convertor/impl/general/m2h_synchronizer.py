@@ -42,9 +42,7 @@ class MG2HFSynchronizer(BaseSynchronizer):
         # mapping rank to (tp, pp, etp, ep, dp, edp)
         self._rank_mapping = torch.zeros([self.world_size, 6], dtype=torch.int, device=self.device)
         self._rank_mapping[self.rank] = torch.Tensor([self.tp_rank, self.pp_rank, self.etp_rank, self.ep_rank, self.dp_rank, self.edp_rank]).to(self.device)
-        #dist.all_gather_into_tensor(self._rank_mapping, self._rank_mapping[self.rank])
-        #print(f"")
-        dist.all_gather_into_tensor(self._rank_mapping.view(-1), self._rank_mapping[self.rank]) # zgc
+        dist.all_gather_into_tensor(self._rank_mapping, self._rank_mapping[self.rank])
         # define the merge function type for each param
         self._merge_type: torch.Tensor = torch.zeros([self.hf_size], dtype=torch.int, device=self.device)
         self._has_param: torch.Tensor = None # self._has_param[param_id].nonzero() ==> ranks that have this param
@@ -277,16 +275,14 @@ class MG2HFSynchronizer(BaseSynchronizer):
             self.copy(layer.input_layernorm.weight, hf_layer.input_layernorm.weight)
         else:
             self.set_selfattn_state(layer.self_attention, hf_layer.self_attn)
-            #self.copy(layer.self_attention.linear_qkv.layer_norm_weight, hf_layer.input_layernorm.weight)
-            self.copy(layer.input_layernorm.weight, hf_layer.input_layernorm.weight)
+            self.copy(layer.self_attention.linear_qkv.layer_norm_weight, hf_layer.input_layernorm.weight)
 
         if hasattr(layer.mlp, 'router'):
             self.set_moe_layer_state(layer.mlp, hf_layer.mlp)
             self.copy(layer.pre_mlp_layernorm.weight, hf_layer.post_attention_layernorm.weight)
         else:
             self.set_mlp_state(layer.mlp, hf_layer.mlp)
-            #self.copy(layer.mlp.linear_fc1.layer_norm_weight, hf_layer.post_attention_layernorm.weight)
-            self.copy(layer.pre_mlp_layernorm.weight, hf_layer.post_attention_layernorm.weight)
+            self.copy(layer.mlp.linear_fc1.layer_norm_weight, hf_layer.post_attention_layernorm.weight)
 
     def check_and_save(self, output_dir):
         sharded_info = split_torch_state_dict_into_shards(
@@ -341,7 +337,6 @@ class MG2HFSynchronizer(BaseSynchronizer):
             if self.debug:
                 logging.info(f"[Iters {bucket_idx} RANK {self.rank}] starts synchronizing parameters with other ranks...")
             if len(ops) > 0:
-                print(f"ops:{ops}")
                 reqs = dist.batch_isend_irecv(ops)
                 if self.debug:
                     for op in ops:
@@ -399,8 +394,7 @@ class MG2HFSynchronizer(BaseSynchronizer):
         )
         for param_id in self._local_params.keys():
             self._has_param[self.rank][param_id] = True
-        #dist.all_gather_into_tensor(self._has_param, self._has_param[self.rank])
-        dist.all_gather_into_tensor(self._has_param.view(-1), self._has_param[self.rank]) # zgc
+        dist.all_gather_into_tensor(self._has_param, self._has_param[self.rank])
         self._has_param = self._has_param.T        
         # param_id --> tensor_shape  Dict[int, Tuple[int, ...]]
         # param_id --> tensor_dtype  Dict[int, dtype]
@@ -438,8 +432,7 @@ class MG2HFSynchronizer(BaseSynchronizer):
         
         # merge_type
         global_merge_type = torch.zeros([self.world_size, self.hf_size], dtype=self._merge_type.dtype, device=self.device)
-        #dist.all_gather_into_tensor(global_merge_type, self._merge_type)
-        dist.all_gather_into_tensor(global_merge_type.view(-1), self._merge_type) # zgc
+        dist.all_gather_into_tensor(global_merge_type, self._merge_type)
         for remote_rank_id, remote_merge_type in enumerate(global_merge_type):
             if self.debug:
                 and_mask = torch.logical_and(remote_merge_type > 0, self._merge_type > 0)
@@ -480,8 +473,7 @@ class MG2HFSynchronizer(BaseSynchronizer):
         )
         for k in required_keys:
             required_ids[self.rank][self._hf_params_key_to_id[k]] = True
-        #dist.all_gather_into_tensor(required_ids, required_ids[self.rank])
-        dist.all_gather_into_tensor(required_ids.view(-1), required_ids[self.rank]) # zgc
+        dist.all_gather_into_tensor(required_ids, required_ids[self.rank])
 
         send_ops = []
         if self.debug:
@@ -602,10 +594,7 @@ class MG2HFSynchronizer(BaseSynchronizer):
                 tensors = deduplicate_and_sort(tensor_dict, 2)
             else:
                 tensors = deduplicate_and_sort(tensor_dict, 0)
-            new_tensors = []
-            for tensor in tensors:
-                new_tensors.append(tensor.to(self.device)) # zgc
-            return torch.cat(new_tensors, dim=axis)
+            return torch.cat(tensors, dim=axis)
         
         def no_merge_func(tensor_dict):
             return list(tensor_dict.values())[0]
