@@ -209,7 +209,7 @@ class DataConcatingMultiProcessingDataLoaderIter(_MultiProcessingDataLoaderIter)
         _BaseDataLoaderIter.__init__(self, loader)
         self._concat_fn = loader._concat_fn
         self._train_mode = loader._train_mode
-        self.consumed_samples = loader._consumed_samples
+        self.consumed_samples = 0
 
         self._prefetch_factor = loader.prefetch_factor
 
