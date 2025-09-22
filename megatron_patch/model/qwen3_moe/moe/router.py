@@ -1,180 +1,110 @@
-
-# Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
-from functools import partial
-
 import torch
-
-from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
-from megatron.core.transformer.moe.moe_utils import (
-    sequence_load_balancing_loss_func,
-    switch_load_balancing_loss_func,
-)
-
 from megatron.core.transformer.moe.router import TopKRouter as _TopKRuter
+from megatron.core.transformer.moe.moe_utils import router_gating_linear, te_general_gemm
 
-from .moe_utils import topk_softmax_with_capacity
+class RouterGatingLinearFunction(torch.autograd.Function):
+    """
+    Autograd function for router gating linear.
+    """
+
+    @staticmethod
+    def forward(ctx, inp: torch.Tensor, weight: torch.Tensor, router_dtype: torch.dtype, requires_weight_grad: bool):
+        """
+        Forward pass of the RouterGatingLinearFunction function.
+        """
+        ctx.save_for_backward(inp, weight)
+        ctx.router_dtype = router_dtype
+        ctx.input_dtype = inp.dtype
+        ctx.weight_dtype = weight.dtype
+        ctx.requires_weight_grad = requires_weight_grad
+        inp_shape = inp.shape
+        inp = inp.view(-1, inp_shape[-1])
+
+        if te_general_gemm is not None and router_dtype != torch.float64:
+            output = te_general_gemm(weight, inp, router_dtype, layout="TN")
+            output = output[0]
+        else:
+            output = torch.mm(inp.to(router_dtype), weight.to(router_dtype).t())
+
+        output = output.view(*inp_shape[:-1], -1)
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output: torch.Tensor):
+        """
+        Backward pass of the RouterGatingLinearFunction function.
+        """
+        inp, weight = ctx.saved_tensors
+        inp_shape = inp.shape
+        grad_shape = grad_output.shape
+        inp = inp.view(-1, inp_shape[-1])
+        grad_output = grad_output.view(-1, grad_shape[-1])
+
+        if te_general_gemm is not None and ctx.router_dtype != torch.float64:
+            grad_input = te_general_gemm(
+                weight.to(ctx.router_dtype), grad_output, ctx.router_dtype, layout="NN", grad=True
+            )
+            grad_input = grad_input[0].to(ctx.input_dtype)
+            if ctx.requires_weight_grad:
+                grad_weight = te_general_gemm(
+                    inp.to(ctx.router_dtype), grad_output, ctx.router_dtype, layout="NT", grad=True
+                )
+                grad_weight = grad_weight[0].to(ctx.weight_dtype)
+            else:
+                grad_weight = None
+        else:
+            grad_input = torch.mm(grad_output, weight.to(ctx.router_dtype)).to(ctx.input_dtype)
+            if ctx.requires_weight_grad:
+                grad_weight = torch.mm(grad_output.t(), inp.to(ctx.router_dtype)).to(ctx.weight_dtype)
+            else:
+                grad_weight = None
+        grad_input = grad_input.view(*inp_shape)
+        return grad_input, grad_weight, None, None
+
+
+def _router_gating_linear(inp: torch.Tensor, weight: torch.Tensor, router_dtype: torch.dtype, requires_weight_grad: bool):
+    """
+    Customized linear layer for router gating.
+    This linear layer accepts bfloat16 input and weight, and can return output with router_dtype.
+    It can reduce the memory usage by avoiding saving the intermediate high precision tensors.
+    """
+    return RouterGatingLinearFunction.apply(inp, weight, router_dtype, requires_weight_grad)
 
 class TopKRouter(_TopKRuter):
     """Route each token to the top-k experts."""
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, model_comm_pgs):
+        super().__init__(config=config, model_comm_pgs=model_comm_pgs)
         if hasattr(self.config, "freeze_moe_router") and self.config.freeze_moe_router:
             self.weight.requires_grad = False
-
-    def compute_routing_scores_for_aux_loss(self, logits: torch.Tensor) -> torch.Tensor:
-        """Compute routing scores based on the score function.
+        if hasattr(self.config, "freeze_partial_moe_routers") and self.config.freeze_partial_moe_routers:
+            self.frozen_weight = self.weight[:self.config.num_freezing_moe_routers].detach()
+            self.active_weight = self.weight[self.config.num_freezing_moe_routers:]
+            self.frozen_weight.requires_grad = False
+    
+    def gating(self, input: torch.Tensor):
+        """Forward pass of the router gate.
 
         Args:
-            logits (torch.Tensor): The logits tensor after gating, shape: [num_tokens, num_experts].
+            input (torch.Tensor): Input tensor.
 
         Returns:
-            torch.Tensor: The normalized routing scores.
+            torch.Tensor: Logits tensor.
         """
-        if self.score_function == "softmax":
-            scores = torch.softmax(logits, dim=-1, dtype=torch.float32)
-            # NOTE: hard code norm_topk_prob here
-            scores = scores / (scores.sum(dim=-1, keepdim=True) + 1e-20)
-        elif self.score_function == "sigmoid":
-            scores = torch.sigmoid(logits)
-            scores = (
-                scores / (scores.sum(dim=-1, keepdim=True) + 1e-20) if self.topk > 1 else scores
-            )
+        if self.weight.device.type == 'cpu':
+            self.weight.data = self.weight.data.to(device=torch.cuda.current_device())
+        if hasattr(self.config, "freeze_partial_moe_routers") and self.config.freeze_partial_moe_routers:
+            self.frozen_weight.data = self.frozen_weight.data.to(device=torch.cuda.current_device())
+            self.active_weight.data = self.active_weight.data.to(device=torch.cuda.current_device())
+        # Convert to specified datatype for routing computation if enabled
+        router_dtype = input.dtype
+        if self.config.moe_router_dtype == 'fp32':
+            router_dtype = torch.float32
+        elif self.config.moe_router_dtype == 'fp64':
+            router_dtype = torch.float64
+        if not self.config.freeze_partial_moe_routers:
+            logits = router_gating_linear(input, self.weight, router_dtype)
         else:
-            raise ValueError(f"Invalid score_function: {self.score_function}")
-        return scores
-
-    def aux_loss_load_balancing(self, logits: torch.Tensor):
-        """Apply auxiliary loss-based load balancing to the logits tensor.
-
-        Args:
-            logits (torch.Tensor): The logits tensor after gating, shape: [num_tokens, num_experts].
-
-        Returns:
-            probs (torch.Tensor): The probabilities of token to experts assignment.
-            routing_map (torch.Tensor): The mask of token to experts assignment.
-        """
-        probs, routing_map, tokens_per_expert = topk_softmax_with_capacity(
-            logits,
-            self.topk,
-            capacity_factor=self.config.moe_expert_capacity_factor,
-            pad_to_capacity=self.config.moe_pad_expert_input_to_capacity,
-            drop_policy=self.config.moe_token_drop_policy,
-            use_pre_softmax=self.config.moe_router_pre_softmax,
-            num_groups=self.config.moe_router_num_groups,
-            group_topk=self.config.moe_router_group_topk,
-            scaling_factor=self.config.moe_router_topk_scaling_factor,
-            deterministic_mode=self.config.deterministic_mode,
-            score_function=self.score_function,
-            expert_bias=self.expert_bias,
-        )
-
-        if self.training and torch.is_grad_enabled():
-            # Apply auxiliary load balancing loss
-            # Skip auxiliary loss calculations when using torch.no_grad() or checkpointing.
-            scores = self.compute_routing_scores_for_aux_loss(logits)
-            aux_loss_func = partial(
-                switch_load_balancing_loss_func,
-                probs=scores,
-                tokens_per_expert=tokens_per_expert,
-                topk=self.topk,
-            )
-            probs = self.apply_load_balancing_loss(
-                activation=probs, load_balancing_loss_func=aux_loss_func
-            )
-        return probs, routing_map
-
-    def seq_aux_loss_load_balancing(self, logits: torch.Tensor, bsz: int, seq_length: int):
-        """Apply sequence-auxiliary loss-based load balancing to the logits tensor.
-
-        Args:
-            logits (torch.Tensor): The logits tensor after gating, shape: [num_tokens, num_experts].
-            bsz (int): The batch size.
-            seq_length (int): The sequence length.
-
-        Returns:
-            probs (torch.Tensor): The probabilities of token to experts assignment.
-            routing_map (torch.Tensor): The mask of token to experts assignment.
-        """
-
-        probs, routing_map, tokens_per_expert = topk_softmax_with_capacity(
-            logits,
-            self.topk,
-            capacity_factor=self.config.moe_expert_capacity_factor,
-            pad_to_capacity=self.config.moe_pad_expert_input_to_capacity,
-            drop_policy=self.config.moe_token_drop_policy,
-            use_pre_softmax=self.config.moe_router_pre_softmax,
-            num_groups=self.config.moe_router_num_groups,
-            group_topk=self.config.moe_router_group_topk,
-            scaling_factor=self.config.moe_router_topk_scaling_factor,
-            deterministic_mode=self.config.deterministic_mode,
-            score_function=self.score_function,
-            expert_bias=self.expert_bias,
-        )
-
-        if self.training and torch.is_grad_enabled():
-            # Apply sequence-auxiliary load balancing loss
-            scores = self.compute_routing_scores_for_aux_loss(logits)
-            aux_loss_func = partial(
-                sequence_load_balancing_loss_func,
-                probs=scores,
-                routing_map=routing_map,
-                batch_size=bsz,
-                seq_length=seq_length,
-                topk=self.topk,
-            )
-            probs = self.apply_load_balancing_loss(
-                activation=probs, load_balancing_loss_func=aux_loss_func
-            )
-
-        return probs, routing_map
-
-    def routing(self, logits: torch.Tensor):
-        """Top-k routing function
-
-        Args:
-            logits (torch.Tensor): Logits tensor after gating.
-
-        Returns:
-            probs (torch.Tensor): The probabilities of token to experts assignment.
-            routing_map (torch.Tensor): The mapping of token to experts assignment,
-                with shape [num_tokens, num_experts].
-        """
-        seq_length, bsz = logits.shape[:2]
-        logits = logits.view(-1, self.config.num_moe_experts)
-
-        # Apply Z-Loss
-        logits = self.apply_z_loss(logits)
-
-        if self.config.moe_token_dispatcher_type == "alltoall_seq":
-            # Gather the logits from the TP region
-            logits = gather_from_sequence_parallel_region(logits)
-        if self.routing_type == "sinkhorn":
-            scores, routing_map = self.sinkhorn_load_balancing(logits)
-        elif self.routing_type == "aux_loss":
-            scores, routing_map = self.aux_loss_load_balancing(logits)
-        elif self.routing_type == "seq_aux_loss":
-            scores, routing_map = self.seq_aux_loss_load_balancing(logits, bsz, seq_length)
-        elif self.routing_type == "none":
-            # A naive top-k routing without load balancing
-            scores, routing_map, _ = topk_softmax_with_capacity(
-                logits,
-                self.topk,
-                capacity_factor=self.config.moe_expert_capacity_factor,
-                pad_to_capacity=self.config.moe_pad_expert_input_to_capacity,
-                drop_policy=self.config.moe_token_drop_policy,
-                use_pre_softmax=self.config.moe_router_pre_softmax,
-                num_groups=self.config.moe_router_num_groups,
-                group_topk=self.config.moe_router_group_topk,
-                scaling_factor=self.config.moe_router_topk_scaling_factor,
-                deterministic_mode=self.config.deterministic_mode,
-                score_function=self.score_function,
-                expert_bias=self.expert_bias,
-            )
-        else:
-            raise ValueError(f"Unsupported MoE routing type: {self.routing_type}")
-        # Prevent extra local tokens accumulation on evaluation or activation recomputation
-        if self.enable_expert_bias and torch.is_grad_enabled():
-            with torch.no_grad():
-                self.local_tokens_per_expert += routing_map.sum(dim=0)
-
-        return scores, routing_map
+            logits_1 = _router_gating_linear(input, self.frozen_weight, router_dtype, requires_weight_grad=False)
+            logits_2 = _router_gating_linear(input, self.active_weight, router_dtype, requires_weight_grad=True)
+            logits = torch.concat([logits_1, logits_2], dim=-1)
+        return logits

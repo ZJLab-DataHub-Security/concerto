@@ -43,13 +43,16 @@ AC=${AC:-full}
 ONLINE_PACKING=${ONLINE_PACKING:-true}
 CHANNEL_LOSS=${CHANNEL_LOSS:-true}
 FREEZE_MOE_ROUTER=${FREEZE_MOE_ROUTER:-false}
-RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-block}
-MP_AC_LAYERS=${MP_AC_LAYERS:-46}
+FREEZE_PARTIAL_MOE_ROUTER=${FREEZE_PARTIAL_MOE_ROUTER:-false}
+NUM_FREEZING_MOE_ROUTERS=${NUM_FREEZING_MOE_ROUTERS:-0}
+RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-uniform}
+MP_AC_LAYERS=${MP_AC_LAYERS:-1}
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
 LR_WARMUP=${LR_WARMUP:-0.1}
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
 PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/zj-gpfs/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_p2_e4}
-DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/common-cpt-exp-debug.jsonl}
+#PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/zj-gpfs/home/qianhao/tq/workspace/concerto/output/checkpoint/mcore-qwen3-A3B-pretrain}
+DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/common-cpt-exp-5B.jsonl}
 #DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/qianhao/data/debug/mmap_qwen3_datasets_text_document}
 VALID_DATASET_PATH=${DATASET_PATH}
 
@@ -458,6 +461,16 @@ if [ ${FREEZE_MOE_ROUTER} = true ]; then
     moe_options=" \
     ${moe_options} \
     --freeze-moe-router"
+fi
+if [ ${FREEZE_PARTIAL_MOE_ROUTER} = true ]; then
+    moe_options=" \
+    ${moe_options} \
+    --freeze-partial-moe-routers"
+fi
+if [ ${NUM_FREEZING_MOE_ROUTERS} > 0 ]; then
+    moe_options=" \
+    ${moe_options} \
+    --num-freezing-moe-routers ${NUM_FREEZING_MOE_ROUTERS}"
 fi
 ##### Prepare logdirs #######
 CURRENT_TIME=$(date +"%m-%d-%H:%M")

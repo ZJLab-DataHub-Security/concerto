@@ -625,6 +625,13 @@ def get_patch_args(parser):
     group.add_argument('--freeze-moe-router',
                     action='store_true',
                     help='If set, freeze moe router gating module')
+    group.add_argument('--freeze-partial-moe-routers',
+                    action='store_true',
+                    help='If set, freeze partial moe module')
+    group.add_argument('--num-freezing-moe-routers',
+                    type=int,
+                    default=0,
+                    help='If set, freeze moe nums when enable freeze-partial-moe-routers')
     group.add_argument('--te-spec-version',
                     type=str,
                     choices=["base", "tqlm"],

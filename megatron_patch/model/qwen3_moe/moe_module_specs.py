@@ -23,8 +23,8 @@ try:
 except ImportError:
     HAVE_TE = False
 
-#from .moe.moe_layer import MoELayer, MoESubmodules
-from megatron.core.transformer.moe.moe_layer import MoELayer, MoESubmodules
+from .moe.moe_layer import MoELayer, MoESubmodules
+# from megatron.core.transformer.moe.moe_layer import MoELayer, MoESubmodules
 
 def get_moe_module_spec(
     use_te: Optional[bool] = True,
