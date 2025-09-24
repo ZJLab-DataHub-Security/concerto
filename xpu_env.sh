@@ -7,8 +7,8 @@ export CUDA_DEVICE_ORDER=OAM_ID
 export CUDART_DUMMY_REGISTER=1
 export XPU_FORCE_USERMODE_LAUNCH=1
 export XMLIR_DIST_SINGLETON_STREAM=true
-export DIST_MULTI_STREAM=${DIST_MULTI_STREAM:-false}
-export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-1}
+export DIST_MULTI_STREAM=${DIST_MULTI_STREAM:-true}
+export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-8}
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-"0,1,2,3,4,5,6,7"}
 export XMLIR_FA_GEMM_TYPE=float
 export XBLAS_FC_HBM_VERSION=40
@@ -25,7 +25,8 @@ export XMLIR_DIST_ASYNC_ISEND_IRECV=true
 ##################
 export USE_FAST_BF16_FC=true # 仅bf16下用到
 # export USE_CAST_FC_FUSION=true # 仅bf16下用到, fp16转bf16与fc计算融合算子
-export XMLIR_BATCH_PARALLEL=false
+export XMLIR_BATCH_PARALLEL=${XMLIR_BATCH_PARALLEL:-true}
+export FC_DW_MULTI_STREAM=${FC_DW_MULTI_STREAM:-true}
 export XPU_FORCE_SHARED_DEVICE_CONTEXT=1
 #################
 # 通信通用
@@ -54,7 +55,7 @@ unset BKCL_KL3_SYSCON_FLAG
 
 # export BKCL_SOCKET_IFNAME=bond0
 export BKCL_RDMA_NICS=bond2,bond2,bond3,bond3,bond4,bond4,bond5,bond5
-export BKCL_TIMEOUT=${BKCL_TIMEOUT:-1200}
+export BKCL_TIMEOUT=${BKCL_TIMEOUT:-1800}
 export CUDA_DISABLE_PRINTF=${CUDA_DISABLE_PRINTF:-1}
 export BKCL_RDMA_VERBS=${BKCL_RDMA_VERBS:-1}
 
@@ -62,8 +63,20 @@ export XME_USE_LOCAL_TE=true
 export XME_USE_TE_VERSION=1.7.0
 export XME_USE_CUSTOM_TRAINING_LOG=true
 export XME_FORCE_SYNC_D2H_COPY=true
-export XME_ENABLE_WEIGHED_BIAS_SWIGLU=${XME_ENABLE_WEIGHED_BIAS_SWIGLU:-false}
 export ENABLE_GROUPED_GEMM=${ENABLE_GROUPED_GEMM:-true}
+export SAVE_INTERVAL=${SAVE_INTERVAL:-50}
 
-#cd /mnt/lhycpfs/lhy/zhaoguochun/KLX-LLM_20250725/KLX-LLM/XMegatron-Extension && make dev ; cd - 
-#cd /mnt/lhycpfs/lhy/zhaoguochun/KLX-LLM_20250725/KLX-LLM/XMegatron-Extension_0725 && make dev ; cd - 
+
+if dmesg -T |  grep -q "noc_idle" <(cat /dev/stdin); then
+    echo "Error: noc timeout found in dmesg, please check node ${RANK} ${HOSTNAME} ${POD_IP}!"
+    dmesg -T >> dmesg_${RANK}.log
+    exit 999
+fi
+
+# 设置任务超时检测阈值为30分钟,默认20分钟
+for dev_id in $(echo $CUDA_VISIBLE_DEVICES | tr ',' ' '); do
+    if [ -f /proc/kunlun/dev$dev_id/task_timeout_detect_threshold_in_ms ]; then
+        echo 1800000 > /proc/kunlun/dev$dev_id/task_timeout_detect_threshold_in_ms
+        cat /proc/kunlun/dev$dev_id/task_timeout_detect_threshold_in_ms
+    fi
+done

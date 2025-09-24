@@ -608,14 +608,14 @@ def get_patch_args(parser):
         default="",  # Default: Image tag not used.
         help="Surround image tokens with tags.",
     )
-    group.add_argument('--log-mfu',
-                    action='store_true',
-                    help='If set, calculate and log MFU.')
-    group.add_argument('--log-mfu-to-tensorboard',
-                    action='store_true',
-                    help='Enable MFU logging to tensorboard.')
-    group.add_argument('--mfu-base-value', type=int, default=312,
-                    help='The denominator when calculating the MFU. Default 312')
+    # group.add_argument('--log-mfu',
+    #                 action='store_true',
+    #                 help='If set, calculate and log MFU.')
+    # group.add_argument('--log-mfu-to-tensorboard',
+    #                 action='store_true',
+    #                 help='Enable MFU logging to tensorboard.')
+    # group.add_argument('--mfu-base-value', type=int, default=312,
+    #                 help='The denominator when calculating the MFU. Default 312')
     group.add_argument('--online-packing',
                     action='store_true',
                     help='If set, dataloader tokenize and packing datasets online')
