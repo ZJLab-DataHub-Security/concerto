@@ -435,12 +435,14 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                            opt_param_scheduler,
                            config)
             if args.calc_channel_loss:
-                gathered_loss = [None for _ in range(torch.distributed.get_world_size())]
-                torch.distributed.all_gather_object(gathered_loss, loss_dict)
-                merged_loss_dict = {}
-                for loss_dict in gathered_loss:
-                    merged_loss_dict.update(loss_dict)
-                loss_dict = merged_loss_dict
+                if mpu.get_pipeline_model_parallel_world_size() > 0:
+                    if mpu.is_pipeline_last_stage():
+                        if mpu.get_tensor_model_parallel_rank() == mpu.get_tensor_model_parallel_world_size() - 1:
+                            received_loss_dict = [None]
+                            torch.distributed.recv_object_list(received_loss_dict, src=torch.distributed.get_global_rank(group=mpu.get_tensor_model_parallel_group(), group_rank=0))
+                            loss_dict=received_loss_dict[0]
+                        elif mpu.get_tensor_model_parallel_rank() == 0:
+                            torch.distributed.send_object_list([loss_dict], dst=torch.distributed.get_global_rank(group=mpu.get_tensor_model_parallel_group(), group_rank=mpu.get_tensor_model_parallel_world_size()-1))
         except StopIteration:
             loss_dict, skipped_iter, should_checkpoint, should_exit, exit_code, grad_norm, num_zeros_in_grad = {}, True, True, True, 0, None, None
             
@@ -477,11 +479,12 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                      get_num_microbatches()
         if args.online_packing:
             consumed_samples = 0
-            if mpu.get_data_parallel_src_rank() == 0:
-                if args.dataloader_type == 'cyclic':
-                    consumed_samples = train_data_iterator.iterable.iter._iterator.consumed_samples
-                else:
-                    consumed_samples = train_data_iterator.iterable.consumed_samples
+            if mpu.get_tensor_model_parallel_rank() == 0:
+                if mpu.get_pipeline_model_parallel_world_size() == 1 or mpu.is_pipeline_first_stage():
+                    if args.dataloader_type == 'cyclic':
+                        consumed_samples = train_data_iterator.iterable.iter._iterator.consumed_samples
+                    else:
+                        consumed_samples = train_data_iterator.iterable.consumed_samples
             consumed_samples = torch.tensor(consumed_samples, device=torch.cuda.current_device())
             torch.distributed.all_reduce(consumed_samples)
             args.consumed_train_samples = consumed_samples.item()
