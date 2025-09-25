@@ -96,7 +96,7 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel]:
             if args.freeze_moe_router or args.freeze_partial_moe_routers:
                 from megatron_patch.model.qwen3_moe.moe.moe_layer import MoELayer
                 for i in range(len(transformer_layer_spec.layer_specs)):
-                    transformer_layer_spec.layer_specs[0].submodules.mlp.module = MoELayer
+                    transformer_layer_spec.layer_specs[i].submodules.mlp.module = MoELayer
         else:
             # Define the decoder layer spec
             if use_te:
@@ -145,26 +145,26 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel]:
             rope_scaling=args.use_rope_scaling,
             mtp_block_spec=mtp_block_spec,
         )
-        if args.num_experts and (args.freeze_moe_router or args.freeze_partial_moe_routers):
+        if args.num_experts and args.freeze_partial_moe_routers:
             moe_frozen_experts_num = args.num_freezing_moe_routers
             ep = args.expert_model_parallel_size
             num_local_experts = args.num_experts // ep
             ep_rank_all_frozen = moe_frozen_experts_num // num_local_experts
             last_ep_rank_frozen_num = moe_frozen_experts_num % num_local_experts
-            if mpu.get_expert_model_parallel_rank() <= ep_rank_all_frozen:
+            if mpu.get_expert_model_parallel_rank() < ep_rank_all_frozen:
                 for i in range(len(model.decoder.layers)):
                     for j in range(model.decoder.layers[0].mlp.experts.linear_fc1.num_gemms):
                         weight1 = getattr(model.decoder.layers[i].mlp.experts.linear_fc1, f'weight{j}')
-                        weight1.requires_grad = False
+                        setattr(weight1, 'requires_grad', False)
                         weight2 = getattr(model.decoder.layers[i].mlp.experts.linear_fc2, f'weight{j}')
-                        weight2.requires_grad = False
-            elif mpu.get_expert_model_parallel_group() == ep_rank_all_frozen + 1:
+                        setattr(weight2, 'requires_grad', False)
+            elif mpu.get_expert_model_parallel_rank() == ep_rank_all_frozen:
                 for i in range(len(model.decoder.layers)):
                     for j in range(last_ep_rank_frozen_num):
                         weight1 = getattr(model.decoder.layers[i].mlp.experts.linear_fc1, f'weight{j}')
-                        weight1.requires_grad = False
+                        setattr(weight1, 'requires_grad', False)
                         weight2 = getattr(model.decoder.layers[i].mlp.experts.linear_fc2, f'weight{j}')
-                        weight2.requires_grad = False
+                        setattr(weight2, 'requires_grad', False)
     return model
 
 def build_data_loader(dataset, consumed_samples):

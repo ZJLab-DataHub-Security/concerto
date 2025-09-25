@@ -76,10 +76,6 @@ class TopKRouter(_TopKRuter):
         super().__init__(config=config, model_comm_pgs=model_comm_pgs)
         if hasattr(self.config, "freeze_moe_router") and self.config.freeze_moe_router:
             self.weight.requires_grad = False
-        if hasattr(self.config, "freeze_partial_moe_routers") and self.config.freeze_partial_moe_routers:
-            self.frozen_weight = self.weight[:self.config.num_freezing_moe_routers].detach()
-            self.active_weight = self.weight[self.config.num_freezing_moe_routers:]
-            self.frozen_weight.requires_grad = False
     
     def gating(self, input: torch.Tensor):
         """Forward pass of the router gate.
@@ -93,8 +89,10 @@ class TopKRouter(_TopKRuter):
         if self.weight.device.type == 'cpu':
             self.weight.data = self.weight.data.to(device=torch.cuda.current_device())
         if hasattr(self.config, "freeze_partial_moe_routers") and self.config.freeze_partial_moe_routers:
-            self.frozen_weight.data = self.frozen_weight.data.to(device=torch.cuda.current_device())
-            self.active_weight.data = self.active_weight.data.to(device=torch.cuda.current_device())
+            if not hasattr(self, 'frozen_weight') and not hasattr(self, 'active_weight'):
+                self.frozen_weight = self.weight[:self.config.num_freezing_moe_routers].detach()
+                self.active_weight = self.weight[self.config.num_freezing_moe_routers:]
+                self.frozen_weight.requires_grad = False
         # Convert to specified datatype for routing computation if enabled
         router_dtype = input.dtype
         if self.config.moe_router_dtype == 'fp32':

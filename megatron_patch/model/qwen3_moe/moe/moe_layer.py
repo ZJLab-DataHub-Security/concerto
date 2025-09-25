@@ -1,9 +1,8 @@
 from megatron.core.transformer.transformer_config import TransformerConfig
 
 from .router import TopKRouter
-
-from megatron.core.transformer.moe.moe_layer import MoESubmodules, ModelCommProcessGroups, get_default_model_comm_pgs
-from megatron.core.transformer.moe.moe_layer import MoELayer as _MoELayer
+from megatron.core.transformer.moe.moe_layer import MoESubmodules, MoELayer as _MoELayer
+from megatron.core.transformer.moe.moe_utils import ModelCommProcessGroups, get_default_model_comm_pgs
 from typing import Optional
 
 class MoELayer(_MoELayer):
