@@ -465,7 +465,8 @@ fi
 if [ ${FREEZE_PARTIAL_MOE_ROUTER} = true ]; then
     moe_options=" \
     ${moe_options} \
-    --freeze-partial-moe-routers"
+    --freeze-partial-moe-routers \
+    --no-save-optim"
 fi
 if [ ${NUM_FREEZING_MOE_ROUTERS} > 0 ]; then
     moe_options=" \
