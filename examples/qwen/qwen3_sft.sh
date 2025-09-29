@@ -224,7 +224,7 @@ elif [ $MODEL_SIZE = A3B ]; then
 
     moe_options=" \
     	--moe-grouped-gemm \
-        --moe-token-dispatcher-type alltoall \
+        --moe-token-dispatcher-type allgather \
         --moe-router-topk ${ROUTER_TOPK} \
         --num-experts ${NUM_EXPERTS} \
         --expert-tensor-parallel-size ${ETP} \
@@ -258,7 +258,7 @@ elif [ $MODEL_SIZE = A22B ]; then
 
     moe_options=" \
     	--moe-grouped-gemm \
-        --moe-token-dispatcher-type alltoall \
+        --moe-token-dispatcher-type allgather \
         --moe-router-topk ${ROUTER_TOPK} \
         --num-experts ${NUM_EXPERTS} \
         --expert-tensor-parallel-size ${ETP} \
