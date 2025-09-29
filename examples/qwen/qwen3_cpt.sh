@@ -221,7 +221,7 @@ elif [ $MODEL_SIZE = A3B ]; then
     EXTRA_VOCAB_SIZE=293
     NUM_KEY_VALUE_HEADS=4
     ROPE_THETA=1000000
-    NUM_EXPERTS=128
+    NUM_EXPERTS=${NUM_EXPERTS:-128}
     ROUTER_TOPK=8
     RMS_NORM_EPS=1e-6
 
@@ -255,7 +255,7 @@ elif [ $MODEL_SIZE = A22B ]; then
     EXTRA_VOCAB_SIZE=293
     NUM_KEY_VALUE_HEADS=4
     ROPE_THETA=1000000
-    NUM_EXPERTS=128
+    NUM_EXPERTS=${NUM_EXPERTS:-128}
     ROUTER_TOPK=8
     RMS_NORM_EPS=1e-6
 
@@ -468,7 +468,7 @@ if [ ${FREEZE_PARTIAL_MOE_ROUTER} = true ]; then
     --freeze-partial-moe-routers \
     --no-save-optim"
 fi
-if [ ${NUM_FREEZING_MOE_ROUTERS} > 0 ]; then
+if [ ${NUM_FREEZING_MOE_ROUTERS} -gt 0 ]; then
     moe_options=" \
     ${moe_options} \
     --num-freezing-moe-routers ${NUM_FREEZING_MOE_ROUTERS}"
