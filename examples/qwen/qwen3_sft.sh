@@ -541,7 +541,7 @@ megatron_options="  \
         --disable-bias-linear \
         --rotary-base ${ROPE_THETA} \
         --no-rope-fusion \
-        --moe-token-dispatcher-type alltoall \
+        --moe-token-dispatcher-type allgather \
         --ckpt-format torch_dist \
         --transformer-impl transformer_engine \
         --cross-entropy-loss-fusion \
