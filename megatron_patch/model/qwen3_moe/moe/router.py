@@ -11,7 +11,6 @@ from megatron.core.transformer.moe.moe_utils import (
 )
 
 from megatron.core.transformer.moe.router import TopKRouter as _TopKRuter
-
 from .moe_utils import topk_softmax_with_capacity
 
 class TopKRouter(_TopKRuter):
@@ -178,3 +177,33 @@ class TopKRouter(_TopKRuter):
                 self.local_tokens_per_expert += routing_map.sum(dim=0)
 
         return scores, routing_map
+
+    def gating(self, input: torch.Tensor):
+        """Forward pass of the router gate.
+
+        Args:
+            input (torch.Tensor): Input tensor.
+
+        Returns:
+            torch.Tensor: Logits tensor.
+        """
+        if self.weight.device.type == 'cpu':
+            self.weight.data = self.weight.data.to(device=torch.cuda.current_device())
+        if hasattr(self.config, "freeze_partial_moe_routers") and self.config.freeze_partial_moe_routers:
+            if not hasattr(self, 'frozen_weight') and not hasattr(self, 'active_weight'):
+                self.frozen_weight = self.weight[:self.config.num_freezing_moe_routers].detach()
+                self.active_weight = self.weight[self.config.num_freezing_moe_routers:]
+                self.frozen_weight.requires_grad = False
+        # Convert to specified datatype for routing computation if enabled
+        router_dtype = input.dtype
+        if self.config.moe_router_dtype == 'fp32':
+            router_dtype = torch.float32
+        elif self.config.moe_router_dtype == 'fp64':
+            router_dtype = torch.float64
+        if not self.config.freeze_partial_moe_routers:
+            logits = torch.nn.functional.linear(input.to(router_dtype), self.weight.to(router_dtype))
+        else:
+            logits_1 = torch.nn.functional.linear(input.to(router_dtype), self.frozen_weight.to(router_dtype))
+            logits_2 = torch.nn.functional.linear(input.to(router_dtype), self.active_weight.to(router_dtype))
+            logits = torch.concat([logits_1, logits_2], dim=-1)
+        return logits

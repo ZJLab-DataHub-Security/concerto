@@ -27,8 +27,8 @@ WEIGHT_DECAY=${WEIGHT_DECAY:-0.01}
 
 ### PARALLEL / BOOL OPTION ###
 TP=${TP:-4}
-PP=${PP:-1}
-EP=${EP:-8}
+PP=${PP:-2}
+EP=${EP:-4}
 ETP=${ETP:-1}
 CP=1
 SP=true
@@ -43,14 +43,15 @@ AC=${AC:-full}
 ONLINE_PACKING=${ONLINE_PACKING:-false}
 CHANNEL_LOSS=${CHANNEL_LOSS:-false}
 FREEZE_MOE_ROUTER=${FREEZE_MOE_ROUTER:-false}
+FREEZE_PARTIAL_MOE_ROUTER=${FREEZE_PARTIAL_MOE_ROUTER:-false}
+NUM_FREEZING_MOE_ROUTERS=${NUM_FREEZING_MOE_ROUTERS:-0}
 RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-block}
 MP_AC_LAYERS=${MP_AC_LAYERS:-46}
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
 LR_WARMUP=${LR_WARMUP:-0.1}
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
-PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/zj-gpfs/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_e8}
-#DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/tianqing-sample/sft-sample.jsonl}
-DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/qwen3_32b_sample_long_sft_32k_pack_text_document}
+PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_p2_e4}
+DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/qianhao/data/sft-I-v1-2_text_document}
 VALID_DATASET_PATH=${DATASET_PATH}
 
 MP_SFT_PACKING=true
@@ -460,6 +461,17 @@ if [ ${FREEZE_MOE_ROUTER} = true ]; then
     moe_options=" \
     ${moe_options} \
     --freeze-moe-router"
+fi
+if [ ${FREEZE_PARTIAL_MOE_ROUTER} = true ]; then
+    moe_options=" \
+    ${moe_options} \
+    --freeze-partial-moe-routers \
+    --no-save-optim"
+fi
+if [ ${NUM_FREEZING_MOE_ROUTERS} > 0 ]; then
+    moe_options=" \
+    ${moe_options} \
+    --num-freezing-moe-routers ${NUM_FREEZING_MOE_ROUTERS}"
 fi
 ##### Prepare logdirs #######
 CURRENT_TIME=$(date +"%m-%d-%H:%M")

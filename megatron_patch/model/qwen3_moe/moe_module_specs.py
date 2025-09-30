@@ -30,6 +30,7 @@ def get_moe_module_spec(
     num_experts: Optional[int] = None,
     moe_grouped_gemm: Optional[bool] = False,
     moe_use_legacy_grouped_gemm: Optional[bool] = False,
+    moe_use_partial_frozen_grouped_gemm: Optional[bool] = False,
 ) -> ModuleSpec:
     """Helper function to get module spec for MoE"""
     assert num_experts is not None
@@ -49,8 +50,12 @@ def get_moe_module_spec(
                 linear_fc1=TEColumnParallelGroupedLinear, linear_fc2=TERowParallelGroupedLinear
             )
         else:
-           ## use legacy GroupedMLP
-            expert_module = GroupedMLP
+            ## use legacy GroupedMLP
+            if moe_use_partial_frozen_grouped_gemm:
+                from .moe.experts import GroupedMLP as PartialFrozenGroupedMLP
+                expert_module = PartialFrozenGroupedMLP
+            else:
+                expert_module = GroupedMLP
             expert_submodule = None
             warnings.warn(
                 'The legacy GroupedMLP will be deprecated in Megatron-Core v0.12.0. '

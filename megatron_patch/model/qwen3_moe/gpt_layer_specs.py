@@ -73,6 +73,7 @@ def get_gpt_layer_with_transformer_engine_spec(
     multi_latent_attention: Optional[bool] = False,
     fp8: Optional[str] = None,  # pylint: disable=unused-arguments
     moe_use_legacy_grouped_gemm: Optional[bool] = False,
+    moe_use_partial_frozen_grouped_gemm: Optional[bool] = False,
 ) -> ModuleSpec:
     """Use this spec to use lower-level Transformer Engine modules (required for fp8 training).
 
@@ -99,6 +100,7 @@ def get_gpt_layer_with_transformer_engine_spec(
         num_experts=num_experts,
         moe_grouped_gemm=moe_grouped_gemm,
         moe_use_legacy_grouped_gemm=moe_use_legacy_grouped_gemm,
+        moe_use_partial_frozen_grouped_gemm=moe_use_partial_frozen_grouped_gemm
     )
 
     if multi_latent_attention:
@@ -289,6 +291,7 @@ def get_mlp_module_spec(
     moe_grouped_gemm: Optional[bool] = False,
     fp8: Optional[str] = None,  # pylint: disable=unused-arguments
     moe_use_legacy_grouped_gemm: Optional[bool] = False,
+    moe_use_partial_frozen_grouped_gemm: Optional[bool] = False,
 ) -> ModuleSpec:
     """Helper function to get module spec for MLP/MoE"""
     if fp8 is not None:
@@ -313,6 +316,7 @@ def get_mlp_module_spec(
             num_experts=num_experts,
             moe_grouped_gemm=moe_grouped_gemm,
             moe_use_legacy_grouped_gemm=moe_use_legacy_grouped_gemm,
+            moe_use_partial_frozen_grouped_gemm=moe_use_partial_frozen_grouped_gemm
         )
 
 
@@ -333,6 +337,7 @@ def get_gpt_decoder_block_spec(
             qk_layernorm=config.qk_layernorm,
             multi_latent_attention=config.multi_latent_attention,
             moe_use_legacy_grouped_gemm=config.moe_use_legacy_grouped_gemm,
+            moe_use_partial_frozen_grouped_gemm=config.freeze_partial_moe_routers
         )
         if use_transformer_engine
         else get_gpt_layer_local_spec(
@@ -351,6 +356,7 @@ def get_gpt_decoder_block_spec(
             qk_layernorm=config.qk_layernorm,
             multi_latent_attention=config.multi_latent_attention,
             moe_use_legacy_grouped_gemm=config.moe_use_legacy_grouped_gemm,
+            moe_use_partial_frozen_grouped_gemm=config.freeze_partial_moe_routers
         )
         if use_transformer_engine
         else get_gpt_layer_local_spec(

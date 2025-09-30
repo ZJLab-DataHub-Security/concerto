@@ -43,14 +43,15 @@ AC=${AC:-full}
 ONLINE_PACKING=${ONLINE_PACKING:-true}
 CHANNEL_LOSS=${CHANNEL_LOSS:-true}
 FREEZE_MOE_ROUTER=${FREEZE_MOE_ROUTER:-false}
-RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-block}
-MP_AC_LAYERS=${MP_AC_LAYERS:-46}
+FREEZE_PARTIAL_MOE_ROUTER=${FREEZE_PARTIAL_MOE_ROUTER:-false}
+NUM_FREEZING_MOE_ROUTERS=${NUM_FREEZING_MOE_ROUTERS:-0}
+RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-uniform}
+XMLIR_PARALLEL_SAVE_MEMORY=true
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
 LR_WARMUP=${LR_WARMUP:-0.1}
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
 PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_p2_e4/}
 DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/john.ly/datasets/data-cpt/common-cpt-exp-5B.jsonl}
-#DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/qianhao/data/debug/mmap_qwen3_datasets_text_document}
 VALID_DATASET_PATH=${DATASET_PATH}
 
 MP_SFT_PACKING=false
@@ -218,7 +219,7 @@ elif [ $MODEL_SIZE = A3B ]; then
     EXTRA_VOCAB_SIZE=293
     NUM_KEY_VALUE_HEADS=4
     ROPE_THETA=1000000
-    NUM_EXPERTS=128
+    NUM_EXPERTS=${NUM_EXPERTS:-128}
     ROUTER_TOPK=8
     RMS_NORM_EPS=1e-6
 
@@ -252,7 +253,7 @@ elif [ $MODEL_SIZE = A22B ]; then
     EXTRA_VOCAB_SIZE=293
     NUM_KEY_VALUE_HEADS=4
     ROPE_THETA=1000000
-    NUM_EXPERTS=128
+    NUM_EXPERTS=${NUM_EXPERTS:-128}
     ROUTER_TOPK=8
     RMS_NORM_EPS=1e-6
 
@@ -406,9 +407,12 @@ fi
 
 if [ $OPTIMIZER_OFFLOAD != false ]; then
     offload_option=" \
+	--optimizer adam \
         --optimizer-cpu-offload \
+        --optimizer-offload-policy static \
+        --overlap-cpu-optimizer-d2h-h2d \
         --use-precision-aware-optimizer \
-        --optimizer-offload-fraction ${OPTIMIZER_OFFLOAD}"
+        --optimizer-offload-fraction ${OPTIMIZER_OFFLOAD_FRACTION:-1.0} "
 fi
 
 if [ $SFT = true ]; then
@@ -458,6 +462,17 @@ if [ ${FREEZE_MOE_ROUTER} = true ]; then
     moe_options=" \
     ${moe_options} \
     --freeze-moe-router"
+fi
+if [ ${FREEZE_PARTIAL_MOE_ROUTER} = true ]; then
+    moe_options=" \
+    ${moe_options} \
+    --no-save-optim \
+    --freeze-partial-moe-routers"
+fi
+if [ ${NUM_FREEZING_MOE_ROUTERS} > 0 ]; then
+    moe_options=" \
+    ${moe_options} \
+    --num-freezing-moe-routers ${NUM_FREEZING_MOE_ROUTERS}"
 fi
 ##### Prepare logdirs #######
 CURRENT_TIME=$(date +"%m-%d-%H:%M")
@@ -547,6 +562,10 @@ megatron_options="  \
         --kv-channels 128 \
         --use-cpu-initialization \
         --no-gradient-accumulation-fusion \
+        --log-mfu \
+        --mfu-base-value 312 \
+        --log-memory-to-tensorboard \
+        --log-token-throughput \
         "
 
 if [[ -z ${LOG_FILE} ]];then

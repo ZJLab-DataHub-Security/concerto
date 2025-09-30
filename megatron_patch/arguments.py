@@ -608,14 +608,6 @@ def get_patch_args(parser):
         default="",  # Default: Image tag not used.
         help="Surround image tokens with tags.",
     )
-    # group.add_argument('--log-mfu',
-    #                 action='store_true',
-    #                 help='If set, calculate and log MFU.')
-    # group.add_argument('--log-mfu-to-tensorboard',
-    #                 action='store_true',
-    #                 help='Enable MFU logging to tensorboard.')
-    # group.add_argument('--mfu-base-value', type=int, default=312,
-    #                 help='The denominator when calculating the MFU. Default 312')
     group.add_argument('--online-packing',
                     action='store_true',
                     help='If set, dataloader tokenize and packing datasets online')
@@ -625,6 +617,13 @@ def get_patch_args(parser):
     group.add_argument('--freeze-moe-router',
                     action='store_true',
                     help='If set, freeze moe router gating module')
+    group.add_argument('--freeze-partial-moe-routers',
+                    action='store_true',
+                    help='If set, freeze partial moe module')
+    group.add_argument('--num-freezing-moe-routers',
+                    type=int,
+                    default=0,
+                    help='If set, freeze moe nums when enable freeze-partial-moe-routers')
     group.add_argument('--te-spec-version',
                     type=str,
                     choices=["base", "tqlm"],
