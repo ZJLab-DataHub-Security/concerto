@@ -189,7 +189,7 @@ class HF2MGSynchronizer(BaseSynchronizer):
                 param_type=ParamType.QKV_B,
             )
 
-    def set_mlp_state(self, mlp, hf_mlp, expert_id=''):
+    def set_mlp_state(self, mlp, hf_mlp, expert_id='', shared=False):
         '''
         Set MLP params.
         The mlp (mcore MLP) should have attributes `linear_fc1` and `linear_fc2`.
@@ -208,13 +208,13 @@ class HF2MGSynchronizer(BaseSynchronizer):
             gate_up_proj_weight, 
             linear_fc1_weight, 
             # param_type=ParamType.GATE_UP if expert_id == '' else ParamType.MOE_GATE_UP
-            param_type=ParamType.MOE_GATE_UP
+            param_type=ParamType.GATE_UP if shared else ParamType.MOE_GATE_UP
         )
         self.copy(
             hf_mlp.down_proj.weight, 
             linear_fc2_weight, 
             #param_type=ParamType.ROW if expert_id == '' else ParamType.MOE_ROW
-            param_type=ParamType.MOE_ROW
+            param_type=ParamType.ROW if shared else ParamType.MOE_ROW
         )
 
     def set_sequential_mlp_state(self, experts, hf_experts):
@@ -247,7 +247,7 @@ class HF2MGSynchronizer(BaseSynchronizer):
         if moe.shared_experts is not None:
             if moe.shared_experts.use_shared_expert_gate:
                 self.copy(hf_moe.shared_expert_gate.weight, moe.shared_experts.gate_weight)
-            self.set_mlp_state(moe.shared_experts, hf_moe.shared_experts)
+            self.set_mlp_state(moe.shared_experts, hf_moe.shared_experts, shared=True)
 
     def set_layer_state(self, layer, hf_layer):
         '''Set transformer layer params.'''

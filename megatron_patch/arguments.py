@@ -620,6 +620,9 @@ def get_patch_args(parser):
     group.add_argument('--freeze-partial-moe-routers',
                     action='store_true',
                     help='If set, freeze partial moe module')
+    group.add_argument('--activate-shared-experts-only',
+                    action='store_true',
+                    help='If set, freeze all parameters in models except shared_experts')
     group.add_argument('--num-freezing-moe-routers',
                     type=int,
                     default=0,

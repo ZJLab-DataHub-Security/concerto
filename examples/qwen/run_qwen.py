@@ -136,9 +136,9 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel]:
             rope_scaling=args.use_rope_scaling,
             mtp_block_spec=mtp_block_spec,
         )
-        if args.freeze_partial_moe_routers:
+        if args.freeze_partial_moe_routers or args.activate_shared_experts_only:
             for name, param in model.named_parameters():
-                if 'mlp.experts' in name or 'mlp.router' in name:
+                if 'mlp.experts' in name or 'mlp.shared_experts' in name or 'mlp.router' in name:
                     continue
                 else:
                     param.requires_grad=False

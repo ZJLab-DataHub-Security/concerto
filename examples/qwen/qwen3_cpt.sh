@@ -49,6 +49,9 @@ RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-uniform}
 XMLIR_PARALLEL_SAVE_MEMORY=true
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
 LR_WARMUP=${LR_WARMUP:-0.1}
+MOE_SHARED_EXPERT_INTERMEDIATE_SIZE=${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE:-0}
+ACTIVATE_SHARED_EXPERTS_ONLY=${ACTIVATE_SHARED_EXPERTS_ONLY:-false}
+
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
 PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_p2_e4/}
 DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/john.ly/datasets/data-cpt/common-cpt-exp-5B.jsonl}
@@ -469,10 +472,21 @@ if [ ${FREEZE_PARTIAL_MOE_ROUTER} = true ]; then
     --no-save-optim \
     --freeze-partial-moe-routers"
 fi
-if [ ${NUM_FREEZING_MOE_ROUTERS} > 0 ]; then
+if [ ${NUM_FREEZING_MOE_ROUTERS} -gt 0 ]; then
     moe_options=" \
     ${moe_options} \
     --num-freezing-moe-routers ${NUM_FREEZING_MOE_ROUTERS}"
+fi
+if [ ${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE} -gt 0 ]; then
+    moe_options=" \
+    ${moe_options} \
+    --moe-shared-expert-intermediate-size ${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE}"
+fi
+if [ ${ACTIVATE_SHARED_EXPERTS_ONLY} = true ]; then
+    moe_options=" \
+    ${moe_options} \
+    --no-save-optim \
+    --activate-shared-experts-only"
 fi
 ##### Prepare logdirs #######
 CURRENT_TIME=$(date +"%m-%d-%H:%M")

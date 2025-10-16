@@ -189,7 +189,7 @@ elif [ $MODEL_SIZE = 32B ]; then
         )
     fi
 elif [ $MODEL_SIZE = A3B ]; then
-        #--moe-grouped-gemm
+        # --moe-grouped-gemm
     GPT_MODEL_ARGS+=(
         --num-layers 48
         --hidden-size 2048
@@ -198,7 +198,7 @@ elif [ $MODEL_SIZE = A3B ]; then
         --num-attention-heads 32
         --untie-embeddings-and-output-weights
         --moe-router-score-function softmax
-        --moe-token-dispatcher-type alltoall
+        --moe-token-dispatcher-type allgather
         --moe-router-topk 8
         --moe-layer-freq "'([1]*48)'"
         --num-experts 128
@@ -207,10 +207,36 @@ elif [ $MODEL_SIZE = A3B ]; then
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
             --tensor-model-parallel-size 4
-            --pipeline-model-parallel-size 1
-            --expert-model-parallel-size 8
+            --pipeline-model-parallel-size 2
+            --expert-model-parallel-size 4
             --expert-tensor-parallel-size 1
 	    --sequence-parallel
+        )
+    fi
+elif [ $MODEL_SIZE = A3BS ]; then
+        # --moe-grouped-gemm
+    GPT_MODEL_ARGS+=(
+        --num-layers 48
+        --hidden-size 2048
+        --ffn-hidden-size 6144
+        --moe-ffn-hidden-size 768
+        --num-attention-heads 32
+        --untie-embeddings-and-output-weights
+        --moe-router-score-function softmax
+        --moe-token-dispatcher-type allgather
+        --moe-router-topk 8
+        --moe-layer-freq "'([1]*48)'"
+        --num-experts 128
+        --num-query-groups 4
+	--moe-shared-expert-intermediate-size ${SHARED_EXPERT_INTERMEDIATE_SIZE:-6144}
+    )
+    if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
+        MODEL_PARALLEL_ARGS=(
+            --tensor-model-parallel-size 4
+            --pipeline-model-parallel-size 2
+            --expert-model-parallel-size 4
+            --expert-tensor-parallel-size 1
+            --sequence-parallel
         )
     fi
 elif [ $MODEL_SIZE = A22B ]; then

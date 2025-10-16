@@ -45,9 +45,11 @@ CHANNEL_LOSS=${CHANNEL_LOSS:-false}
 FREEZE_MOE_ROUTER=${FREEZE_MOE_ROUTER:-false}
 FREEZE_PARTIAL_MOE_ROUTER=${FREEZE_PARTIAL_MOE_ROUTER:-false}
 NUM_FREEZING_MOE_ROUTERS=${NUM_FREEZING_MOE_ROUTERS:-0}
-RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-block}
-MP_AC_LAYERS=${MP_AC_LAYERS:-46}
+RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-uniform}
+MP_AC_LAYERS=${MP_AC_LAYERS:-1}
 OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
+MOE_SHARED_EXPERT_INTERMEDIATE_SIZE=${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE:-0}
+ACTIVATE_SHARED_EXPERTS_ONLY=${ACTIVATE_SHARED_EXPERTS_ONLY:-false}
 LR_WARMUP=${LR_WARMUP:-0.1}
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
 PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_p2_e4}
@@ -468,10 +470,21 @@ if [ ${FREEZE_PARTIAL_MOE_ROUTER} = true ]; then
     --freeze-partial-moe-routers \
     --no-save-optim"
 fi
-if [ ${NUM_FREEZING_MOE_ROUTERS} > 0 ]; then
+if [ ${NUM_FREEZING_MOE_ROUTERS} -gt 0 ]; then
     moe_options=" \
     ${moe_options} \
     --num-freezing-moe-routers ${NUM_FREEZING_MOE_ROUTERS}"
+fi
+if [ ${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE} -gt 0 ]; then
+    moe_options=" \
+    ${moe_options} \
+    --moe-shared-expert-intermediate-size ${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE}"
+fi
+if [ ${ACTIVATE_SHARED_EXPERTS_ONLY} = true ]; then
+    moe_options=" \
+    ${moe_options} \
+    --no-save-optim \
+    --activate-shared-experts-only"
 fi
 ##### Prepare logdirs #######
 CURRENT_TIME=$(date +"%m-%d-%H:%M")
