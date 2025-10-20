@@ -51,6 +51,7 @@ OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
 LR_WARMUP=${LR_WARMUP:-0.1}
 MOE_SHARED_EXPERT_INTERMEDIATE_SIZE=${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE:-0}
 ACTIVATE_SHARED_EXPERTS_ONLY=${ACTIVATE_SHARED_EXPERTS_ONLY:-false}
+OVERWRITE_CKPT=${OVERWRITE_CKPT:-false}
 
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
 PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_p2_e4/}
@@ -70,7 +71,6 @@ else
     OUTPUT_BASEPATH=${OUTPUT_DIR}
 fi
 SAVE_CKPT=true
-
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 export NCCL_IB_GID_INDEX=3
 if [ $ENV = dsw ]; then
@@ -402,12 +402,6 @@ else
     exit -1
 fi
 
-if [ $PRETRAIN_CHECKPOINT_PATH != none ]; then
-    load_option=" \
-            --load $PRETRAIN_CHECKPOINT_PATH \
-	    --auto-detect-ckpt-format"
-fi
-
 if [ $OPTIMIZER_OFFLOAD != false ]; then
     offload_option=" \
 	--optimizer adam \
@@ -445,13 +439,14 @@ else
 fi
 if [ ${ONLINE_PACKING} = true ]; then
     packing_options=" \
+      --no-save-optim \
+      --no-load-optim \
       --online-packing \
       --no-create-attention-mask-in-dataloader "
     if [ ${CHANNEL_LOSS} = true ]; then
         packing_options=" \
-          --online-packing \
-	      --no-create-attention-mask-in-dataloader \
-	      --calc-channel-loss"
+	  ${packing_options} \
+	  --calc-channel-loss"
     fi
 elif [ ${MP_SFT_PACKING} = true ]; then
     packing_options=" \
@@ -470,6 +465,7 @@ if [ ${FREEZE_PARTIAL_MOE_ROUTER} = true ]; then
     moe_options=" \
     ${moe_options} \
     --no-save-optim \
+    --no-load-optim \
     --freeze-partial-moe-routers"
 fi
 if [ ${NUM_FREEZING_MOE_ROUTERS} -gt 0 ]; then
@@ -486,6 +482,7 @@ if [ ${ACTIVATE_SHARED_EXPERTS_ONLY} = true ]; then
     moe_options=" \
     ${moe_options} \
     --no-save-optim \
+    --no-load-optim \
     --activate-shared-experts-only"
 fi
 ##### Prepare logdirs #######
@@ -496,6 +493,14 @@ TENSORBOARD_DIR="${OUTPUT_BASEPATH}/${DETAIL_TASK_NAME}"
 SAVED_PRETRAIN_CHECKPOINT_PATH="${OUTPUT_BASEPATH}/checkpoint/${TASK_NAME}"
 LOG_DIR=${OUTPUT_BASEPATH}/${DETAIL_TASK_NAME}
 LOG_NAME="${NODE_RANK}.txt"
+if [ ${OVERWRITE_CKPT} = false ] && [ -f ${SAVED_PRETRAIN_CHECKPOINT_PATH}/latest_checkpointed_iteration.txt ]; then
+    PRETRAIN_CHECKPOINT_PATH=${SAVED_PRETRAIN_CHECKPOINT_PATH}
+fi
+if [ $PRETRAIN_CHECKPOINT_PATH != none ]; then
+    load_option=" \
+            --load $PRETRAIN_CHECKPOINT_PATH \
+	    --auto-detect-ckpt-format"
+fi
 
 mkdir -p ${SAVED_PRETRAIN_CHECKPOINT_PATH}
 mkdir -p ${LOG_DIR}
@@ -519,8 +524,10 @@ if [ ${LOAD_RNG} = false ]; then
             ${cpt_continue_options} \
             --no-load-rng "
 fi
-
-find -L ${PRETRAIN_CHECKPOINT_PATH} -maxdepth 1 -type f -name "*.json" -print0 | xargs -0 cp -t ${SAVED_PRETRAIN_CHECKPOINT_PATH}
+if [ ${PRETRAIN_CHECKPOINT_PATH} != ${SAVED_PRETRAIN_CHECKPOINT_PATH} ]; then
+    find -L ${PRETRAIN_CHECKPOINT_PATH} -maxdepth 1 -type f -name "*.json" -print0 | xargs -0 cp -t ${SAVED_PRETRAIN_CHECKPOINT_PATH}
+    find -L ${PRETRAIN_CHECKPOINT_PATH} -maxdepth 1 -type f -name "merges.txt" -print0 | xargs -0 cp -t ${SAVED_PRETRAIN_CHECKPOINT_PATH}
+fi
 
 
 megatron_options="  \
