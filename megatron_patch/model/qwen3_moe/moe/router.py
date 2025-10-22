@@ -175,7 +175,6 @@ class TopKRouter(_TopKRuter):
         if self.enable_expert_bias and torch.is_grad_enabled():
             with torch.no_grad():
                 self.local_tokens_per_expert += routing_map.sum(dim=0)
-
         return scores, routing_map
 
     def gating(self, input: torch.Tensor):
@@ -189,9 +188,11 @@ class TopKRouter(_TopKRuter):
         """
         if self.weight.device.type == 'cpu':
             self.weight.data = self.weight.data.to(device=torch.cuda.current_device())
+        if self.config.activate_shared_experts_only:
+            self.weight.requires_grad = False
         if hasattr(self.config, "freeze_partial_moe_routers") and self.config.freeze_partial_moe_routers:
             if not hasattr(self, 'frozen_weight') and not hasattr(self, 'active_weight'):
-                self.frozen_weight = self.weight[:self.config.num_freezing_moe_routers].detach()
+                self.frozen_weight = self.weight[:self.config.num_freezing_moe_routers].detach().clone()
                 self.active_weight = self.weight[self.config.num_freezing_moe_routers:]
                 self.frozen_weight.requires_grad = False
         # Convert to specified datatype for routing computation if enabled

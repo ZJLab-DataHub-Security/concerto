@@ -18,6 +18,7 @@ class PatchedTransformerConfig(TransformerConfig):
         if self.activate_shared_experts_only:
             self.freeze_partial_moe_routers = True
             self.num_freezing_moe_routers = self.num_moe_experts
+            self.moe_router_load_balancing_type = "none"
         if self.freeze_partial_moe_routers:
             self.freeze_moe_router = False
             assert self.num_freezing_moe_routers > 0

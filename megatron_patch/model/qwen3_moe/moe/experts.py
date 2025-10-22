@@ -121,7 +121,12 @@ class MoeFcFusion_(torch.autograd.Function):
                 other_trans=not trans_w,
             )
 
-        dw = None
+        dw = torch.zeros(
+            w_shape,
+            dtype=weight.dtype,
+            device=torch.cuda.current_device(),
+            requires_grad=False,
+        )
         if ctx.needs_input_grad[1]:
             main_grad = weight.main_grad
             grad_output = torch.zeros_like(main_grad).view(w_shape)
@@ -259,48 +264,42 @@ class GroupedMLP(_GroupedMLP):
         if ep_rank == ep_frozen_rank:
             freeze_weight_offset = self.config.num_freezing_moe_routers % self.num_local_experts
         if permuted_local_hidden_states.nelement() != 0:
+
             # Reshape the weights for the grouped GEMMs.
             w1 = self.weight1.view(self.num_local_experts, self.config.hidden_size, -1)
             w2 = self.weight2.view(self.num_local_experts, -1, self.config.hidden_size)
             if freeze_weight:
                 if not hasattr(self, 'frozen_w1'):
-                    self.frozen_w1 = w1.detach()
+                    self.frozen_w1 = self.weight1.detach().clone()
                     self.frozen_w1.requires_grad = False
+                elif not self.weight1.equal(self.frozen_w1):
+                    self.weight1.data = self.frozen_w1.clone()
                 if not hasattr(self, 'frozen_w2'):
-                    self.frozen_w2 = w2.detach()
+                    self.frozen_w2 = self.weight2.detach().clone()
                     self.frozen_w2.requires_grad = False
-                fc1_output = gmm(
-                    permuted_local_hidden_states, self.frozen_w1, tokens_per_expert, trans_b=False, weight=self.weight1
-                )
-            else:
-                fc1_output = gmm(
-                    permuted_local_hidden_states, w1, tokens_per_expert, trans_b=False, weight=self.weight1, freeze_weight_offset=freeze_weight_offset
-                )
+                elif not self.weight2.equal(self.frozen_w2):
+                    self.weight2.data = self.frozen_w2.clone()
+
+            fc1_output = gmm(
+                permuted_local_hidden_states, w1, tokens_per_expert, trans_b=False, weight=self.weight1, freeze_weight_offset=freeze_weight_offset
+            )
             if self.activation_recompute:
                 intermediate_parallel = self.activation_checkpoint.checkpoint(
                     self.activation_func_with_probs, fc1_output, permuted_probs.unsqueeze(-1)
                 )
-                if freeze_weight:
-                    fc2_output = gmm(
-                        intermediate_parallel, self.frozen_w2, tokens_per_expert, trans_b=False, weight=self.weight2
-                    )
-                else:
-                    fc2_output = gmm(
-                        intermediate_parallel, w2, tokens_per_expert, trans_b=False, weight=self.weight2, freeze_weight_offset=freeze_weight_offset
-                    )
+
+                fc2_output = gmm(
+                    intermediate_parallel, w2, tokens_per_expert, trans_b=False, weight=self.weight2, freeze_weight_offset=freeze_weight_offset
+                )
                 self.activation_checkpoint.discard_output_and_register_recompute(fc2_output)
             else:
                 intermediate_parallel = self.activation_func_with_probs(
                     fc1_output, permuted_probs.unsqueeze(-1)
                 )
-                if freeze_weight:
-                    fc2_output = gmm(
-                        intermediate_parallel, self.frozen_w2, tokens_per_expert, trans_b=False, weight=self.weight2
-                    )
-                else:
-                    fc2_output = gmm(
-                        intermediate_parallel, w2, tokens_per_expert, trans_b=False, weight=self.weight2, freeze_weight_offset=freeze_weight_offset
-                    )
+
+                fc2_output = gmm(
+                    intermediate_parallel, w2, tokens_per_expert, trans_b=False, weight=self.weight2, freeze_weight_offset=freeze_weight_offset
+                )
         else:
             # No token is allocated for local experts.
             assert torch.count_nonzero(tokens_per_expert) == 0

@@ -533,8 +533,9 @@ fi
 megatron_options="  \
         --lr ${LR} \
         --min-lr ${MIN_LR} \
-        --lr-decay-style cosine \
+        --lr-decay-style ${LR_DECAY:-"cosine"} \
         --weight-decay ${WEIGHT_DECAY} \
+        --lr-wsd-decay-samples ${WSD_DECAY_SAMPLES:-0} \
         --adam-beta1 0.9 \
         --adam-beta2 0.95 \
         --clip-grad 1.0 \
@@ -581,7 +582,6 @@ megatron_options="  \
         --cross-entropy-loss-fusion \
         --qk-layernorm \
         --kv-channels 128 \
-        --use-cpu-initialization \
         --no-gradient-accumulation-fusion \
         --log-mfu \
         --mfu-base-value 312 \

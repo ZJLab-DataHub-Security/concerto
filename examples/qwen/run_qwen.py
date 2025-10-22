@@ -138,7 +138,9 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel]:
         )
         if args.freeze_partial_moe_routers or args.activate_shared_experts_only:
             for name, param in model.named_parameters():
-                if 'mlp.experts' in name or 'mlp.shared_experts' in name or 'mlp.router' in name:
+                if args.activate_shared_experts_only and 'mlp.shared_experts' in name:
+                    continue
+                elif args.freeze_partial_moe_routers and ('mlp.experts' in name or 'mlp.shared_experts' in name or 'mlp.router' in name):
                     continue
                 else:
                     param.requires_grad=False
