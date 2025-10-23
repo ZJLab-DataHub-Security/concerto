@@ -111,8 +111,8 @@ if [ $MODEL_SIZE = 0.6B ]; then
     )
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
-            --tensor-model-parallel-size 1
-            --pipeline-model-parallel-size 4
+            --tensor-model-parallel-size ${TP:-1}
+            --pipeline-model-parallel-size ${PP:-1}
         )
     fi
 elif [ $MODEL_SIZE = 1.7B ]; then
@@ -125,8 +125,8 @@ elif [ $MODEL_SIZE = 1.7B ]; then
     )
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
-            --tensor-model-parallel-size 1
-            --pipeline-model-parallel-size 4
+            --tensor-model-parallel-size ${TP:-1}
+            --pipeline-model-parallel-size ${PP:-1}
         )
     fi
 elif [ $MODEL_SIZE = 4B ]; then
@@ -139,8 +139,8 @@ elif [ $MODEL_SIZE = 4B ]; then
     )
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
-            --tensor-model-parallel-size 1
-            --pipeline-model-parallel-size 4
+            --tensor-model-parallel-size ${TP:-1}
+            --pipeline-model-parallel-size ${PP:-1}
         )
     fi
 elif [ $MODEL_SIZE = 8B ]; then
@@ -154,8 +154,8 @@ elif [ $MODEL_SIZE = 8B ]; then
     )
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
-            --tensor-model-parallel-size 1
-            --pipeline-model-parallel-size 4
+            --tensor-model-parallel-size ${TP:-1}
+            --pipeline-model-parallel-size ${PP:-1}
         )
     fi
 elif [ $MODEL_SIZE = 14B ]; then 
@@ -169,8 +169,8 @@ elif [ $MODEL_SIZE = 14B ]; then
     )
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
-            --tensor-model-parallel-size 1
-            --pipeline-model-parallel-size 8
+            --tensor-model-parallel-size ${TP:-1}
+            --pipeline-model-parallel-size ${PP:-1}
         )
     fi
 elif [ $MODEL_SIZE = 32B ]; then
@@ -184,8 +184,8 @@ elif [ $MODEL_SIZE = 32B ]; then
     )
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
-            --tensor-model-parallel-size 1
-            --pipeline-model-parallel-size 8
+            --tensor-model-parallel-size ${TP:-1}
+            --pipeline-model-parallel-size ${PP:-1}
         )
     fi
 elif [ $MODEL_SIZE = A3B ]; then
@@ -206,10 +206,10 @@ elif [ $MODEL_SIZE = A3B ]; then
     )
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
-            --tensor-model-parallel-size 4
-            --pipeline-model-parallel-size 2
-            --expert-model-parallel-size 4
-            --expert-tensor-parallel-size 1
+            --tensor-model-parallel-size ${TP:-4}
+            --pipeline-model-parallel-size ${PP:-2}
+            --expert-model-parallel-size ${EP:-4}
+            --expert-tensor-parallel-size ${ETP:-1}
 	    --sequence-parallel
         )
     fi
@@ -232,10 +232,10 @@ elif [ $MODEL_SIZE = A3BS ]; then
     )
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
-            --tensor-model-parallel-size 4
-            --pipeline-model-parallel-size 2
-            --expert-model-parallel-size 4
-            --expert-tensor-parallel-size 1
+            --tensor-model-parallel-size ${TP:-4}
+            --pipeline-model-parallel-size ${PP:-2}
+            --expert-model-parallel-size ${EP:-4}
+            --expert-tensor-parallel-size ${ETP:-1}
             --sequence-parallel
         )
     fi
