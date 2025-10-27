@@ -463,9 +463,7 @@ fi
 if [ ${FREEZE_PARTIAL_MOE_ROUTER} = true ]; then
     moe_options=" \
     ${moe_options} \
-    --freeze-partial-moe-routers \
-    --no-load-optim \
-    --no-save-optim"
+    --freeze-partial-moe-routers"
 fi
 if [ ${NUM_FREEZING_MOE_ROUTERS} -gt 0 ]; then
     moe_options=" \
@@ -477,12 +475,12 @@ if [ ${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE} -gt 0 ]; then
     ${moe_options} \
     --moe-shared-expert-intermediate-size ${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE}"
 fi
-if [ ${ACTIVATE_SHARED_EXPERTS_ONLY} = true ]; then
+# FROZEN_PARAM_NAMES, options are: [input_layernorm, self_attention.linear_proj, self_attention.linear_qkv, self_attention.q_layernorm, self_attention.k_layernorm, pre_mlp_layernorm, mlp.router, mlp.experts, mlp.shared_experts embedding.word_embeddings, final_layernorm, output_layer]
+FROZEN_PARAM_NAMES=(${FROZEN_PARAM_NAMES//,/ })
+if [ ${FROZEN_PARAM_NAMES} ]; then
     moe_options=" \
     ${moe_options} \
-    --no-load-optim \
-    --no-save-optim \
-    --activate-shared-experts-only"
+    --frozen-param-names ${FROZEN_PARAM_NAMES[@]}"
 fi
 ##### Prepare logdirs #######
 CURRENT_TIME=$(date +"%m-%d-%H:%M")

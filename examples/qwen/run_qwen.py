@@ -136,14 +136,18 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel]:
             rope_scaling=args.use_rope_scaling,
             mtp_block_spec=mtp_block_spec,
         )
-        if args.freeze_partial_moe_routers or args.activate_shared_experts_only:
+        if args.freeze_partial_moe_routers or args.frozen_param_names:
             for name, param in model.named_parameters():
-                if args.activate_shared_experts_only and 'mlp.shared_experts' in name:
+                if args.freeze_partial_moe_routers and ('mlp.experts' in name or 'mlp.router' in name):
                     continue
-                elif args.freeze_partial_moe_routers and ('mlp.experts' in name or 'mlp.shared_experts' in name or 'mlp.router' in name):
-                    continue
-                else:
-                    param.requires_grad=False
+                elif args.frozen_param_names is not None:
+                    for freeze_name in args.frozen_param_names:
+                        assert freeze_name in ['input_layernorm', 'self_attention.linear_proj', 'self_attention.linear_qkv',
+                                               'self_attention.q_layernorm', 'self_attention.k_layernorm', 'pre_mlp_layernorm',
+                                               'mlp.router', 'mlp.experts', 'mlp.shared_experts', 'embedding.word_embeddings',
+                                               'final_layernorm', 'output_layer']
+                        if freeze_name in name:
+                            param.requires_grad = False
 
     return model
 

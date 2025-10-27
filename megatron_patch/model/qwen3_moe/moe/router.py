@@ -188,9 +188,7 @@ class TopKRouter(_TopKRuter):
         """
         if self.weight.device.type == 'cpu':
             self.weight.data = self.weight.data.to(device=torch.cuda.current_device())
-        if self.config.activate_shared_experts_only:
-            self.weight.requires_grad = False
-        if hasattr(self.config, "freeze_partial_moe_routers") and self.config.freeze_partial_moe_routers:
+        if hasattr(self.config, "freeze_partial_moe_routers") and self.config.freeze_partial_moe_routers and self.config.num_freezing_moe_routers < self.weight.shape[0]:
             if not hasattr(self, 'frozen_weight') and not hasattr(self, 'active_weight'):
                 self.frozen_weight = self.weight[:self.config.num_freezing_moe_routers].detach().clone()
                 self.active_weight = self.weight[self.config.num_freezing_moe_routers:]
@@ -201,7 +199,7 @@ class TopKRouter(_TopKRuter):
             router_dtype = torch.float32
         elif self.config.moe_router_dtype == 'fp64':
             router_dtype = torch.float64
-        if not self.config.freeze_partial_moe_routers:
+        if not self.config.freeze_partial_moe_routers or self.config.num_freezing_moe_routers == self.weight.shape[0]:
             logits = torch.nn.functional.linear(input.to(router_dtype), self.weight.to(router_dtype))
         else:
             logits_1 = torch.nn.functional.linear(input.to(router_dtype), self.frozen_weight.to(router_dtype))
