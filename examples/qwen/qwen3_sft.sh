@@ -23,6 +23,7 @@ LOAD_OPTIM=${LOAD_OPTIM:-true}
 LOAD_RNG=${LOAD_RNG:-true}
 MOE_AUX_LOSS_COEFF=${MOE_AUX_LOSS_COEFF:-0.001}
 WEIGHT_DECAY=${WEIGHT_DECAY:-0.01}
+TOKEN_LOSS=${TOKEN_LOSS:-false}
 ### BASE CONFIG ###
 
 ### PARALLEL / BOOL OPTION ###
@@ -414,8 +415,12 @@ if [ $SFT = true ]; then
     TASK="sft"
     sft_options=" \
          --eod-mask-loss \
-         --calculate-per-token-loss \
          --train-mode finetune"
+    if [ $TOKEN_LOSS = true ]; then
+        sft_options=" \
+	${sft_options} \
+	--calculate-per-token-loss"
+    fi
 else
     TASK="pretrain"
     sft_options=" \

@@ -69,7 +69,7 @@ def get_batch(data_iterator):
         if args.train_mode == "pretrain":
             raise ValueError('The JSON-SFT dataset should only be used for finetuning!')
         # get batches based on the TP rank you are on
-        batch = get_batch_on_this_tp_rank_original(data_iterator, per_seq_average=True)
+        batch = get_batch_on_this_tp_rank_original(data_iterator, per_seq_average=not args.calculate_per_token_loss)
         # slice batch along sequence dimension for context parallelism
         num_seqs = batch.pop('num_seqs')
         batch = get_batch_on_this_cp_rank(batch)
@@ -88,7 +88,7 @@ def get_batch(data_iterator):
         if args.train_mode == "pretrain":
             batch = get_batch_on_this_tp_rank(data_iterator)
         else:
-            batch = get_batch_on_this_tp_rank_idxmap_sft(data_iterator, per_seq_average=True)
+            batch = get_batch_on_this_tp_rank_idxmap_sft(data_iterator, per_seq_average=not args.calculate_per_token_loss)
         packed_seq_params = None
         if args.reset_position_ids:
             # sequence-packing, build cu_seqlens
@@ -166,7 +166,7 @@ def loss_func(loss_mask: torch.Tensor, num_seqs: torch.Tensor, output_tensor: to
     # The issue is solved since 0926
     if num_seqs is None:
         # average on token-level
-        return loss[0] / loss[1] * args.context_parallel_size, {"lm loss": averaged_loss}
+        return loss[0] * args.context_parallel_size, loss[1].round().to(torch.int), {"lm loss": averaged_loss}
     return loss[0] * args.context_parallel_size, num_seqs.sum(), {"lm loss": averaged_loss}
 
 def get_batch_with_channel(data_iterator):
@@ -204,7 +204,7 @@ def get_batch_with_channel(data_iterator):
         if args.train_mode == "pretrain":
             batch = get_batch_on_this_tp_rank(data_iterator)
         else:
-            batch = get_batch_on_this_tp_rank_idxmap_sft(data_iterator, per_seq_average=True)
+            batch = get_batch_on_this_tp_rank_idxmap_sft(data_iterator, per_seq_average=not args.calculate_per_token_loss)
         packed_seq_params = None
         if args.reset_position_ids:
             # sequence-packing, build cu_seqlens
@@ -324,7 +324,7 @@ def loss_func_with_channel(loss_mask: torch.Tensor, num_seqs: torch.Tensor, chan
     loss_dict.update(channel_loss_dict)
     if num_seqs is None:
         # average on token-level
-        return loss[0] / loss[1] * args.context_parallel_size, loss_dict
+        return loss[0] * args.context_parallel_size, loss[1].round().to(torch.int), {"lm loss": averaged_loss}
     return loss[0] * args.context_parallel_size, num_seqs.sum(), loss_dict
 
 def forward_step(data_iterator, model):
