@@ -51,7 +51,7 @@ OPTIMIZER_OFFLOAD=${OPTIMIZER_OFFLOAD:-false}
 LR_WARMUP=${LR_WARMUP:-0.1}
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
 PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/zj-gpfs/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_p2_e4}
-#PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/zj-gpfs/home/qianhao/tq/workspace/concerto/output/checkpoint/mcore-qwen3-A3B-pretrain}
+OVERWRITE_CKPT=${OVERWRITE_CKPT:-false}
 DATASET_PATH=${DATASET_PATH:-/mnt/zj-gpfs/home/qianhao/data/common-cpt-exp-5B.jsonl}
 #DATASET_PATH=${DATASET_PATH:-/mnt/geogpt-training/home/qianhao/data/debug/mmap_qwen3_datasets_text_document}
 VALID_DATASET_PATH=${DATASET_PATH}
@@ -400,13 +400,6 @@ else
     echo "uneven pipeline split must be used when PP > 1"
     exit -1
 fi
-
-if [ $PRETRAIN_CHECKPOINT_PATH != none ]; then
-    load_option=" \
-            --load $PRETRAIN_CHECKPOINT_PATH \
-	    --auto-detect-ckpt-format"
-fi
-
 if [ $OPTIMIZER_OFFLOAD != false ]; then
     offload_option=" \
         --optimizer-cpu-offload \
@@ -479,6 +472,15 @@ TASK_NAME="mcore-qwen3-${MODEL_SIZE}-${TASK}"
 DETAIL_TASK_NAME="${TASK_NAME}-lr-${LR}-minlr-${MIN_LR}-bs-${BATCH_SIZE}-gbs-${GLOBAL_BATCH_SIZE}-seqlen-${SEQ_LEN}-pr-${PR}-tp-${TP}-pp-${PP}-cp-${CP}-ac-${AC}-do-${DO}-sp-${SP}/${CURRENT_TIME}${LABEL}"
 TENSORBOARD_DIR="${OUTPUT_BASEPATH}/${DETAIL_TASK_NAME}"
 SAVED_PRETRAIN_CHECKPOINT_PATH="${OUTPUT_BASEPATH}/checkpoint/${TASK_NAME}"
+if [ ${OVERWRITE_CKPT} = false ] && [ -f ${SAVED_PRETRAIN_CHECKPOINT_PATH}/latest_checkpointed_iteration.txt ]; then
+    PRETRAIN_CHECKPOINT_PATH=${SAVED_PRETRAIN_CHECKPOINT_PATH}
+fi
+if [ $PRETRAIN_CHECKPOINT_PATH != none ]; then
+    load_option=" \
+            --load $PRETRAIN_CHECKPOINT_PATH \
+	    --auto-detect-ckpt-format"
+fi
+
 LOG_DIR=${OUTPUT_BASEPATH}/${DETAIL_TASK_NAME}
 LOG_NAME="${NODE_RANK}.txt"
 
@@ -504,9 +506,10 @@ if [ ${LOAD_RNG} = false ]; then
             ${cpt_continue_options} \
             --no-load-rng "
 fi
-
-find -L ${PRETRAIN_CHECKPOINT_PATH} -maxdepth 1 -type f -name "*.json" -print0 | xargs -0 cp -t ${SAVED_PRETRAIN_CHECKPOINT_PATH}
-
+if [ ${PRETRAIN_CHECKPOINT_PATH} != ${SAVED_PRETRAIN_CHECKPOINT_PATH} ]; then
+    find -L ${PRETRAIN_CHECKPOINT_PATH} -maxdepth 1 -type f -name "*.json" -print0 | xargs -0 cp -t ${SAVED_PRETRAIN_CHECKPOINT_PATH}
+    find -L ${PRETRAIN_CHECKPOINT_PATH} -maxdepth 1 -type f -name "merges.txt" -print0 | xargs -0 cp -t ${SAVED_PRETRAIN_CHECKPOINT_PATH}
+fi
 
 megatron_options="  \
         --lr ${LR} \
