@@ -2,7 +2,7 @@
 set -e
 CURRENT_DIR="$( cd "$( dirname "$0" )" && pwd )"
 CONVERTOR_DIR=$( dirname $( dirname ${CURRENT_DIR}))
-MEGATRON_PATH=/workspace/KLX-Megatron
+MEGATRON_PATH=/workspace/Megatron-LM
 
 export PYTHONPATH=${CONVERTOR_DIR}/impl:${MEGATRON_PATH}:$PYTHONPATH
 export CUDA_DEVICE_MAX_CONNECTIONS=1
@@ -102,8 +102,8 @@ GPT_MODEL_ARGS=(
 )
 
 if [ $MODEL_SIZE = A22B ]; then
+        #--moe-grouped-gemm
     GPT_MODEL_ARGS+=(
-        --moe-grouped-gemm
         --num-layers 94
         --hidden-size 4096
         --ffn-hidden-size 12288
@@ -116,12 +116,12 @@ if [ $MODEL_SIZE = A22B ]; then
         --moe-layer-freq "'([1]*94)'"
         --num-experts 128
         --num-query-groups 4
-	--decoder-first-pipeline-num-layers 10
+	--decoder-first-pipeline-num-layers 6
     )
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
             --tensor-model-parallel-size 4
-            --pipeline-model-parallel-size 8
+            --pipeline-model-parallel-size 12
             --expert-model-parallel-size 8
             --expert-tensor-parallel-size 1
 	    --sequence-parallel

@@ -201,7 +201,7 @@ elif [ $MODEL_SIZE = A3B ]; then
         --moe-token-dispatcher-type alltoall
         --moe-router-topk 8
         --moe-layer-freq "'([1]*48)'"
-        --num-experts 128
+        --num-experts ${NUM_EXPERTS:-128}
         --num-query-groups 4
     )
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
