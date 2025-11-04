@@ -514,7 +514,8 @@ fi
 megatron_options="  \
         --lr ${LR} \
         --min-lr ${MIN_LR} \
-        --lr-decay-style cosine \
+        --lr-decay-style ${LR_DECAY:-"cosine"} \
+        --lr-wsd-decay-samples ${WSD_DECAY_SAMPLES:-0} \
         --weight-decay ${WEIGHT_DECAY} \
         --adam-beta1 0.9 \
         --adam-beta2 0.95 \
