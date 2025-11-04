@@ -3,8 +3,9 @@ set -e
 CURRENT_DIR="$( cd "$( dirname "$0" )" && pwd )"
 CONVERTOR_DIR=$( dirname $( dirname ${CURRENT_DIR}))
 MEGATRON_PATH=/workspace/Megatron-LM
+ROOT_DIR=$( dirname $( dirname ${CONVERTOR_DIR}))
 
-export PYTHONPATH=${CONVERTOR_DIR}/impl:${MEGATRON_PATH}:$PYTHONPATH
+export PYTHONPATH=${ROOT_DIR}:{CONVERTOR_DIR}/impl:${MEGATRON_PATH}:$PYTHONPATH
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=true # for PyTorch >= 2.6
 
@@ -228,7 +229,7 @@ elif [ $MODEL_SIZE = A3BS ]; then
         --moe-layer-freq "'([1]*48)'"
         --num-experts 128
         --num-query-groups 4
-	--moe-shared-expert-intermediate-size ${SHARED_EXPERT_INTERMEDIATE_SIZE:-6144}
+	--moe-shared-expert-intermediate-size ${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE:-768}
     )
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
@@ -267,7 +268,12 @@ EVAL_AND_LOGGING_ARGS=(
     --eval-interval 1000 
     --eval-iters 10
 )
-
+N_SHARED_EXPERTS=(${N_SHARED_EXPERTS//,/ })
+if [ ${N_SHARED_EXPERTS} ]; then
+    OTHER_ARGS+=(
+    --n-extended-shared-experts ${N_SHARED_EXPERTS[@]}
+    )
+fi
 CONVERT_ARGS=(
     --model-type GPT 
     --load-dir ${LOAD_DIR}
@@ -277,6 +283,7 @@ CONVERT_ARGS=(
     --no-load-optim
     --no-load-rng
     --logging-level 1
+    --pretrain-script run_qwen
 )
 
 cmd="torchrun ${DISTRIBUTED_ARGS[@]} impl/convert.py \

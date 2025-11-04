@@ -629,6 +629,11 @@ def get_patch_args(parser):
         default=None,
         help="param_names to be frozen while training",
     )
+    group.add_argument("--n-extended-shared-experts",
+        nargs="*",
+        type=int,
+        default=None,
+    )
     group.add_argument('--te-spec-version',
                     type=str,
                     choices=["base", "tqlm"],

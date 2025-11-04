@@ -481,6 +481,12 @@ if [ ${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE} -gt 0 ]; then
     --moe-shared-expert-intermediate-size ${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE}"
 fi
 # FROZEN_PARAM_NAMES, options are: [input_layernorm, self_attention.linear_proj, self_attention.linear_qkv, self_attention.q_layernorm, self_attention.k_layernorm, pre_mlp_layernorm, mlp.router, mlp.experts, mlp.shared_experts embedding.word_embeddings, final_layernorm, output_layer]
+N_SHARED_EXPERTS=(${N_SHARED_EXPERTS//,/ })
+if [ ${N_SHARED_EXPERTS} ];then
+    moe_options=" \
+    ${moe_options} \
+    --n-extended-shared-experts ${N_SHARED_EXPERTS[@]}"
+fi
 FROZEN_PARAM_NAMES=(${FROZEN_PARAM_NAMES//,/ })
 if [ ${FROZEN_PARAM_NAMES} ]; then
     moe_options=" \
