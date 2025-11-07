@@ -52,6 +52,7 @@ LR_WARMUP=${LR_WARMUP:-0.1}
 MOE_SHARED_EXPERT_INTERMEDIATE_SIZE=${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE:-0}
 ACTIVATE_SHARED_EXPERTS_ONLY=${ACTIVATE_SHARED_EXPERTS_ONLY:-false}
 OVERWRITE_CKPT=${OVERWRITE_CKPT:-false}
+OVERRIDE_OPTIM=${OVERRIDE_OPTIM:-false}
 
 SAVE_INTERVAL=${SAVE_INTERVAL:-100}
 PRETRAIN_CHECKPOINT_PATH=${PRETRAIN_CHECKPOINT_PATH:-/mnt/geogpt-training/home/qianhao/models/megatron_ckpt/mcore_qwen3_a3b_t4_p2_e4/}
@@ -505,6 +506,11 @@ if [ $PRETRAIN_CHECKPOINT_PATH != none ]; then
     load_option=" \
             --load $PRETRAIN_CHECKPOINT_PATH \
 	    --auto-detect-ckpt-format"
+fi
+if [ $OVERRIDE_OPTIM = true ]; then
+    load_option=" \
+	    ${load_option} \
+	    --override-opt_param-scheduler "
 fi
 
 mkdir -p ${SAVED_PRETRAIN_CHECKPOINT_PATH}
