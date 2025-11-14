@@ -60,7 +60,7 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel]:
         Union[GPTModel]: The returned model
     """
     args = get_args()
-    build_tokenizer(args)
+    # build_tokenizer(args)
     use_te = args.transformer_impl == "transformer_engine"
 
     if args.record_memory_history:
@@ -144,93 +144,4 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel]:
             rope_scaling=args.use_rope_scaling,
             mtp_block_spec=mtp_block_spec,
         )
-        if args.frozen_param_names:
-            for name, param in model.named_parameters():
-                for freeze_name in args.frozen_param_names:
-                    assert freeze_name in ['input_layernorm', 'self_attention.linear_proj', 'self_attention.linear_qkv',
-                                           'self_attention.q_layernorm', 'self_attention.k_layernorm', 'pre_mlp_layernorm',
-                                           'mlp.router', 'mlp.experts', 'mlp.shared_experts', 'embedding.word_embeddings',
-                                           'final_layernorm', 'output_layer']
-                    if freeze_name in name:
-                        param.requires_grad = False
     return model
-
-def build_data_loader(dataset, consumed_samples):
-    """Build dataloader given an input dataset."""
-
-    if dataset is None:
-        return None
-    args = get_args()
-
-    # Megatron sampler
-    if args.dataloader_type == 'single':
-        batch_sampler = MegatronPretrainingSampler(
-            total_samples=len(dataset),
-            consumed_samples=0 if args.online_packing else consumed_samples,
-            micro_batch_size=args.micro_batch_size,
-            data_parallel_rank=mpu.get_data_parallel_rank(),
-            data_parallel_size=mpu.get_data_parallel_world_size())
-    elif args.dataloader_type == 'cyclic':
-        batch_sampler = MegatronPretrainingRandomSampler(
-            dataset,
-            total_samples=len(dataset),
-            consumed_samples=0 if args.online_packing else consumed_samples,
-            micro_batch_size=args.micro_batch_size,
-            data_parallel_rank=mpu.get_data_parallel_rank(),
-            data_parallel_size=mpu.get_data_parallel_world_size(),
-            data_sharding=args.data_sharding)
-    elif args.dataloader_type == "external":
-        # External dataloaders are passed through. User is expected to provide a
-        # torch-compatible dataloader and define samplers, if needed.
-        return dataset
-    else:
-        raise Exception('{} dataloader type is not supported.'.format(
-                args.dataloader_type))
-
-    # Torch dataloader.
-    if args.online_packing:
-        from megatron_patch.data.loader import DataLoaderWithDataConcatingIterator
-        from megatron_patch.data.concator import SFTConcatFn, CPTConcatFn
-        from megatron_patch.data.collator import DataCollatorForSFTRawText, DataCollatorForCPTRawText
-        data_collator = None
-        data_collator = None
-        tokenizer = get_tokenizer()
-        if args.train_mode == 'pretrain':
-            data_collator = DataCollatorForCPTRawText(tokenizer=tokenizer)
-            data_concator = CPTConcatFn(args.micro_batch_size, args.seq_length, tokenizer.pad_token_id)
-        elif args.train_mode == 'finetune':
-            data_collator = DataCollatorForSFTRawText(tokenizer=tokenizer, max_padding_length=args.seq_length)
-            data_concator = SFTConcatFn(args.micro_batch_size, args.seq_length, tokenizer.pad_token_id)
-        # DataLoaderWithDataConcatingIterator only support num_workers>0
-        dataloader = DataLoaderWithDataConcatingIterator(dataset=dataset,
-                                                        batch_sampler=batch_sampler,
-                                                        num_workers=1,
-                                                        pin_memory=True,
-                                                        persistent_workers=True,
-                                                        prefetch_factor=2,
-                                                        collate_fn=data_collator,
-                                                        concat_fn=data_concator,
-                                                        train_mode=args.train_mode,
-                                                        consumed_samples=args.consumed_train_samples
-                                                        )
-    else:
-        dataloader = torch.utils.data.DataLoader(dataset,
-                                       batch_sampler=batch_sampler,
-                                       num_workers=args.num_workers,
-                                       pin_memory=True,
-                                       persistent_workers=True if args.num_workers > 0 else False,
-                                       )
-    return dataloader
-
-if __name__ == "__main__":
-    from megatron_patch.template.helper import forward_step
-    train_valid_test_datasets_provider.is_distributed = True
-
-    pretrain(
-        train_valid_test_datasets_provider,
-        model_provider,
-        ModelType.encoder_or_decoder,
-        forward_step,
-        extra_args_provider=get_patch_args,
-        dataloader_provider_func=build_data_loader
-    )

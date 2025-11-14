@@ -450,21 +450,24 @@ else
     packing_options=" \
       --no-create-attention-mask-in-dataloader "
 fi
-if [ ${FREEZE_MOE_ROUTER} = true ]; then
+if [ ${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE} -gt 0 ]; then
     moe_options=" \
     ${moe_options} \
-    --freeze-moe-router"
+    --moe-shared-expert-intermediate-size ${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE}"
 fi
-if [ ${FREEZE_PARTIAL_MOE_ROUTER} = true ]; then
+N_SHARED_EXPERTS=(${N_SHARED_EXPERTS//,/ })
+if [ ${N_SHARED_EXPERTS} ];then
     moe_options=" \
     ${moe_options} \
-    --freeze-partial-moe-routers \
-    --no-save-optim"
+    --n-extended-shared-experts ${N_SHARED_EXPERTS[@]}"
 fi
-if [ ${NUM_FREEZING_MOE_ROUTERS} -gt 0 ]; then
+
+# FROZEN_PARAM_NAMES, options are: [input_layernorm, self_attention.linear_proj, self_attention.linear_qkv, self_attention.q_layernorm, self_attention.k_layernorm, pre_mlp_layernorm, mlp.router, mlp.experts, mlp.shared_experts embedding.word_embeddings, final_layernorm, output_layer]
+FROZEN_PARAM_NAMES=(${FROZEN_PARAM_NAMES//,/ })
+if [ ${FROZEN_PARAM_NAMES} ]; then
     moe_options=" \
     ${moe_options} \
-    --num-freezing-moe-routers ${NUM_FREEZING_MOE_ROUTERS}"
+    --frozen-param-names ${FROZEN_PARAM_NAMES[@]}"
 fi
 ##### Prepare logdirs #######
 CURRENT_TIME=$(date +"%m-%d-%H:%M")

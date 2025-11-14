@@ -3,8 +3,9 @@ set -e
 CURRENT_DIR="$( cd "$( dirname "$0" )" && pwd )"
 CONVERTOR_DIR=$( dirname $( dirname ${CURRENT_DIR}))
 MEGATRON_PATH=/workspace/Megatron-LM
+ROOT_DIR=$( dirname $( dirname ${CONVERTOR_DIR}))
 
-export PYTHONPATH=${CONVERTOR_DIR}/impl:${MEGATRON_PATH}:$PYTHONPATH
+export PYTHONPATH=${ROOT_DIR}:${CONVERTOR_DIR}/impl:${MEGATRON_PATH}:$PYTHONPATH
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=true # for PyTorch >= 2.6
 
@@ -213,6 +214,32 @@ elif [ $MODEL_SIZE = A3B ]; then
 	    --sequence-parallel
         )
     fi
+elif [ $MODEL_SIZE = A3BS ]; then
+        # --moe-grouped-gemm
+    GPT_MODEL_ARGS+=(
+        --num-layers 48
+        --hidden-size 2048
+        --ffn-hidden-size 6144
+        --moe-ffn-hidden-size 768
+        --num-attention-heads 32
+        --untie-embeddings-and-output-weights
+        --moe-router-score-function softmax
+        --moe-token-dispatcher-type allgather
+        --moe-router-topk 8
+        --moe-layer-freq "'([1]*48)'"
+        --num-experts 128
+        --num-query-groups 4
+	--moe-shared-expert-intermediate-size ${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE:-768}
+    )
+    if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
+        MODEL_PARALLEL_ARGS=(
+            --tensor-model-parallel-size ${TP:-4}
+            --pipeline-model-parallel-size ${PP:-2}
+            --expert-model-parallel-size ${EP:-4}
+            --expert-tensor-parallel-size ${ETP:-1}
+            --sequence-parallel
+        )
+    fi
 elif [ $MODEL_SIZE = A22B ]; then
     echo "Please use 16xH20 for conversion"
     exit
@@ -251,8 +278,14 @@ CONVERT_ARGS=(
     --no-load-optim
     --no-load-rng
     --logging-level 1
+    --pretrain-script run_qwen
 )
-
+N_SHARED_EXPERTS=(${N_SHARED_EXPERTS//,/ })
+if [ ${N_SHARED_EXPERTS} ]; then
+    OTHER_ARGS+=(
+    --n-extended-shared-experts ${N_SHARED_EXPERTS[@]}
+    )
+fi
 cmd="torchrun ${DISTRIBUTED_ARGS[@]} impl/convert.py \
     ${GPT_MODEL_ARGS[@]} \
     ${TRAINING_ARGS[@]} \

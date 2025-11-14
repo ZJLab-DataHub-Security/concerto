@@ -88,21 +88,11 @@ class TopKRouter(_TopKRuter):
         """
         if self.weight.device.type == 'cpu':
             self.weight.data = self.weight.data.to(device=torch.cuda.current_device())
-        if hasattr(self.config, "freeze_partial_moe_routers") and self.config.freeze_partial_moe_routers:
-            if not hasattr(self, 'frozen_weight') and not hasattr(self, 'active_weight'):
-                self.frozen_weight = self.weight[:self.config.num_freezing_moe_routers].detach()
-                self.active_weight = self.weight[self.config.num_freezing_moe_routers:]
-                self.frozen_weight.requires_grad = False
         # Convert to specified datatype for routing computation if enabled
         router_dtype = input.dtype
         if self.config.moe_router_dtype == 'fp32':
             router_dtype = torch.float32
         elif self.config.moe_router_dtype == 'fp64':
             router_dtype = torch.float64
-        if not self.config.freeze_partial_moe_routers:
-            logits = router_gating_linear(input, self.weight, router_dtype)
-        else:
-            logits_1 = _router_gating_linear(input, self.frozen_weight, router_dtype, requires_weight_grad=False)
-            logits_2 = _router_gating_linear(input, self.active_weight, router_dtype, requires_weight_grad=True)
-            logits = torch.concat([logits_1, logits_2], dim=-1)
+        logits = router_gating_linear(input, self.weight, router_dtype)
         return logits

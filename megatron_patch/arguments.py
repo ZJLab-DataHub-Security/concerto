@@ -622,16 +622,16 @@ def get_patch_args(parser):
     group.add_argument('--calc-channel-loss',
                     action='store_true',
                     help='If set, calculate loss group by channel')
-    group.add_argument('--freeze-moe-router',
-                    action='store_true',
-                    help='If set, freeze moe router gating module')
-    group.add_argument('--freeze-partial-moe-routers',
-                    action='store_true',
-                    help='If set, freeze partial moe module')
-    group.add_argument('--num-freezing-moe-routers',
-                    type=int,
-                    default=0,
-                    help='If set, freeze moe nums when enable freeze-partial-moe-routers')
+    group.add_argument("--frozen-param-names",
+        nargs="*",
+        default=None,
+        help="param_names to be frozen while training",
+    )
+    group.add_argument("--n-extended-shared-experts",
+        nargs="*",
+        type=int,
+        default=None,
+    )
     group.add_argument('--te-spec-version',
                     type=str,
                     choices=["base", "tqlm"],
