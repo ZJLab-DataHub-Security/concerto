@@ -148,7 +148,10 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel]:
                                                'final_layernorm', 'output_layer']
                         if freeze_name in name:
                             param.requires_grad = False
-
+            def make_inputs_require_grad(module, input, output):
+                output.requires_grad_(True)
+            if hasattr(model, 'embedding'):
+                model.embedding.word_embeddings.register_forward_hook(make_inputs_require_grad)
     return model
 
 def build_data_loader(dataset, consumed_samples):
