@@ -49,6 +49,10 @@ if [ ${USE_CUDA} = true ]; then
     OTHER_ARGS+=(
         --use-gpu
     )
+else
+    OTHER_ARGS+=(
+        --distributed-backend gloo
+    )
 fi
 
 if [ ${PR} = fp16 ]; then

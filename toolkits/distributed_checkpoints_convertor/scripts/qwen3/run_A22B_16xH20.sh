@@ -48,6 +48,10 @@ if [ ${USE_CUDA} = true ]; then
     OTHER_ARGS+=(
         --use-gpu
     )
+else
+    OTHER_ARGS+=(
+        --distributed-backend gloo
+    )
 fi
 
 if [ ${PR} = fp16 ]; then
@@ -115,12 +119,12 @@ if [ $MODEL_SIZE = A22B ]; then
         --moe-layer-freq "'([1]*94)'"
         --num-experts 128
         --num-query-groups 4
-	--decoder-first-pipeline-num-layers 10
+	--decoder-first-pipeline-num-layers 6
     )
     if [ -z  ${MODEL_PARALLEL_ARGS} ]; then
         MODEL_PARALLEL_ARGS=(
             --tensor-model-parallel-size 4
-            --pipeline-model-parallel-size 8
+            --pipeline-model-parallel-size 12
             --expert-model-parallel-size 8
             --expert-tensor-parallel-size 1
 	    --sequence-parallel
